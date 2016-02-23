@@ -48,7 +48,7 @@ function Channel (stream, link) {
   this.remoteJoined = false
 
   this.remotePausing = true
-  this.remoteBitfield = bitfield(1, {grow: MAX_BITFIELD})
+  this.remoteBitfield = bitfield(1, {grow: MAX_BITFIELD}) // TODO: this should be a proof bitfield instead
   this.amPausing = true
   this.amRequesting = bitfield(1, {grow: Infinity}) // TODO: use an array instead
   this.inflight = 0
