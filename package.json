@@ -1,0 +1,36 @@
+{
+  "name": "hypercore-protocol",
+  "version": "0.0.0",
+  "description": "Stream that implements the hypercore protocol",
+  "main": "index.js",
+  "dependencies": {
+    "bitfield": "^1.1.2",
+    "brfs": "^1.4.3",
+    "duplexify": "^3.4.2",
+    "length-prefixed-stream": "^1.4.0",
+    "numeric-id-map": "^1.1.0",
+    "protocol-buffers": "^3.1.5",
+    "readable-stream": "^2.0.5"
+  },
+  "devDependencies": {
+    "standard": "^6.0.7"
+  },
+  "scripts": {
+    "test": "standard"
+  },
+  "browserify": {
+    "transform": [
+      "brfs"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mafintosh/hypercore-protocol.git"
+  },
+  "author": "Mathias Buus (@mafintosh)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mafintosh/hypercore-protocol/issues"
+  },
+  "homepage": "https://github.com/mafintosh/hypercore-protocol"
+}
