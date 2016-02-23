@@ -6,6 +6,8 @@ Stream that implements the [hypercore](https://github.com/mafintosh/hypercore) p
 npm install hypercore-protocol
 ```
 
+[![build status](https://travis-ci.org/mafintosh/hypercore-protocol.svg?branch=master)](https://travis-ci.org/mafintosh/hypercore-protocol)
+
 ## Usage
 
 ``` js
