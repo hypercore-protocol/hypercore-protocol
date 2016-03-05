@@ -7,9 +7,9 @@ var otherKey = Buffer('01234567012345670123456701234567')
 tape('join emits channel', function (t) {
   var p = protocol()
 
-  p.on('channel', function (k, channel) {
+  p.on('channel', function (channel) {
     process.nextTick(function () { // channel is emitted in same tick
-      t.same(k.toString('hex'), key.toString('hex'), 'same key')
+      t.same(channel.key.toString('hex'), key.toString('hex'), 'same key')
       t.ok(ch === channel, 'same channel instance')
       t.end()
     })
@@ -22,28 +22,36 @@ tape('join two channels', function (t) {
   var p = protocol()
   var expected = [key, otherKey]
 
-  p.on('channel', function (k) {
-    t.same(k, expected.shift(), 'expected channel key')
+  p.on('channel', function (channel) {
+    t.same(channel.key, expected.shift(), 'expected channel key')
   })
 
   p.join(key)
   p.join(otherKey)
-  t.same(p.list(), [key, otherKey], 'joined both channels')
+  t.same(p.list().map(toKey), [key, otherKey], 'joined both channels')
   t.same(expected.length, 0, 'fired both events')
   t.end()
+
+  function toKey (ch) {
+    return ch.key
+  }
 })
 
 tape('join and leave', function (t) {
   var p = protocol()
 
-  t.same(p.list(), [], 'not in any channel')
+  t.same(p.list().map(toKey), [], 'not in any channel')
   p.join(key)
-  t.same(p.list(), [key], 'joined channel')
+  t.same(p.list().map(toKey), [key], 'joined channel')
   p.leave(otherKey)
-  t.same(p.list(), [key], 'joined channel')
+  t.same(p.list().map(toKey), [key], 'joined channel')
   p.leave(key)
-  t.same(p.list(), [], 'not in any channel')
+  t.same(p.list().map(toKey), [], 'not in any channel')
   t.end()
+
+  function toKey (ch) {
+    return ch.key
+  }
 })
 
 tape('encrypts messages', function (t) {
@@ -113,7 +121,7 @@ tape('remote joins and closes', function (t) {
     }
   })
 
-  p2.on('channel', function (k, channel) {
+  p2.on('channel', function (channel) {
     channel.on('close', function () {
       remoteClose = true
       t.ok(localClose, 'local closed')

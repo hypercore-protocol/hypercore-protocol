@@ -166,7 +166,7 @@ function use (extensions) {
       })
     }
 
-    this._protocol.emit('channel', key, this)
+    this._protocol.emit('channel', this)
 
     if (!this._buffer) return
     while (this._buffer.length) this._onmessage(this._buffer.shift(), 0)
@@ -348,8 +348,8 @@ function use (extensions) {
 
     function onclose () {
       clearInterval(self._keepAliveInterval)
-      var keys = self.list()
-      for (var i = 0; i < keys.length; i++) self.leave(keys[i])
+      var channels = self.list()
+      for (var i = 0; i < channels.length; i++) channels[i].close()
     }
 
     function onfinish () {
@@ -484,8 +484,8 @@ function use (extensions) {
     var list = []
 
     for (var i = 0; i < keys.length; i++) {
-      var key = this._channels[keys[i]].key
-      if (key) list.push(key)
+      var ch = this._channels[keys[i]]
+      if (ch.key) list.push(ch)
     }
 
     return list
