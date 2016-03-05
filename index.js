@@ -69,9 +69,9 @@ function use (extensions) {
     this._buffer = null
     this._protocol = protocol
     this._encode = protocol._encode
-    this._localId = -1
+    this._localId = 0
     this._localIdLen = 0
-    this._remoteId = -1
+    this._remoteId = 0
   }
 
   inherits(Channel, events.EventEmitter)
@@ -164,6 +164,7 @@ function use (extensions) {
 
     messages.Open.encode(open, buf, offset)
     this._encode.write(buf)
+    this._protocol._keepAlive = 0
 
     if (!this._protocol.remoteId) {
       this.handshake({
@@ -210,6 +211,7 @@ function use (extensions) {
 
     cipher.copy(container, offset)
     this._encode.write(container)
+    this._protocol._keepAlive = 0
   }
 
   Channel.prototype._onmessage = function (buf, offset) {
@@ -357,17 +359,29 @@ function use (extensions) {
     this._secure = opts.secure !== false
     this._nonce = null
     this._encode = stream.PassThrough()
-    this._decode = lpstream.decode({limit: MAX_MESSAGE}).on('data', parse)
+    this._decode = lpstream.decode({limit: MAX_MESSAGE, allowEmpty: true}).on('data', parse)
     this._channels = {}
     this._join = opts.join
     this._local = []
     this._remote = []
+    this._keepAliveInterval = null
+    this._keepAlive = 0
+    this._remoteKeepAlive = 0
+
     this.on('finish', onfinish)
+    this.on('close', onclose)
 
     this.setReadable(this._encode)
     this.setWritable(this._decode)
 
+    function onclose () {
+      clearInterval(self._keepAliveInterval)
+      var keys = self.list()
+      for (var i = 0; i < keys.length; i++) self.leave(keys[i])
+    }
+
     function onfinish () {
+      onclose()
       self._encode.end()
     }
 
@@ -378,8 +392,32 @@ function use (extensions) {
 
   inherits(Protocol, duplexify)
 
-  Protocol.prototype.keepAlive = function (time) {
-    this._encode.write(KEEP_ALIVE)
+  Protocol.prototype.setTimeout = function (time, ontimeout) {
+    if (ontimeout) this.once('timeout', ontimeout)
+    var self = this
+
+    this._keepAlive = 0
+    this._remoteKeepAlive = 0
+
+    clearInterval(this._keepAliveInterval)
+    this._keepAliveInterval = setInterval(kick, (time / 4) | 0)
+    if (this._keepAliveInterval) this._keepAliveInterval.unref()
+
+    function kick () {
+      if (self._remoteKeepAlive > 4) {
+        clearInterval(self._keepAliveInterval)
+        self.emit('timeout')
+        return
+      }
+
+      self._remoteKeepAlive++
+      if (self._keepAlive > 2) {
+        self._encode.write(KEEP_ALIVE)
+        self._keepAlive = 0
+      } else {
+        self._keepAlive++
+      }
+    }
   }
 
   Protocol.prototype.remoteSupports = function (id) {
@@ -412,12 +450,14 @@ function use (extensions) {
   }
 
   Protocol.prototype._parse = function (data) {
-    if (!data.length) {
-      return
-    }
+    this._remoteKeepAlive = 0
+    if (!data.length) return
 
     var remoteId = varint.decode(data, 0)
     var offset = varint.decode.bytes
+
+    if (remoteId > this._remote.length) return
+    if (remoteId === this._remote.length) this._remote.push(null)
 
     if (!this._remote[remoteId]) {
       try {
