@@ -18,7 +18,7 @@
     "standard": "^6.0.7"
   },
   "scripts": {
-    "test": "standard"
+    "test": "standard && tape test.js"
   },
   "browserify": {
     "transform": [

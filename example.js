@@ -1,4 +1,4 @@
-var protocol = require('./')
+var protocol = require('./').use('ping')
 
 var p1 = protocol({
   id: Buffer('max'),
@@ -19,6 +19,13 @@ p1.on('handshake', function () {
 })
 
 p1.on('channel', function (key, channel) {
+  channel.on('ping', function () {
+    console.log('got ping')
+    channel.close()
+  })
+  channel.on('close', function () {
+    console.log('closing shop')
+  })
   channel.on('request', function (block) {
     console.log('remote requests:', block)
     channel.response(block, Buffer('hello'))
@@ -26,8 +33,12 @@ p1.on('channel', function (key, channel) {
 })
 
 p2.on('channel', function (key, channel) {
+  channel.on('close', function () {
+    console.log('closing')
+  })
   channel.request(1)
   channel.request(2)
+  channel.ping()
   channel.on('response', function (block, data, proof) {
     console.log('got response:', block, data, proof)
   })
