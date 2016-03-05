@@ -54,7 +54,7 @@ Other options include:
 ``` js
 {
   id: optionalPeerId, // you can use this to detect if you connect to yourself
-  secure: true // set to false to disable encryption for debuggin purposes
+  secure: true // set to false to disable encryption for debugging purposes
 }
 ```
 
@@ -109,7 +109,7 @@ You can send messages to the remote peer before this has been emitted.
 
 Send a request message. See the protobuf schema or more information
 
-#### `channel.on('request', message)
+#### `channel.on('request', message)`
 
 Emitted when a request message is received
 
@@ -117,7 +117,7 @@ Emitted when a request message is received
 
 Send a response message. See the protobuf schema or more information
 
-#### `channel.on('response', message)
+#### `channel.on('response', message)`
 
 Emitted when a response message is received
 
@@ -125,7 +125,7 @@ Emitted when a response message is received
 
 Send a cancel message. See the protobuf schema or more information
 
-#### `channel.on('cancel', message)
+#### `channel.on('cancel', message)`
 
 Emitted when a cancel message is received
 
@@ -133,7 +133,7 @@ Emitted when a cancel message is received
 
 Send a have message. See the protobuf schema or more information
 
-#### `channel.on('have', message)
+#### `channel.on('have', message)`
 
 Emitted when a have message is received
 
@@ -141,7 +141,7 @@ Emitted when a have message is received
 
 Send a resume signal
 
-#### `channel.on('resume')
+#### `channel.on('resume')`
 
 Emitted when a resume signal is received
 
@@ -149,7 +149,7 @@ Emitted when a resume signal is received
 
 Send a pause signal
 
-#### `channel.on('pause')
+#### `channel.on('pause')`
 
 Emitted when a pause signal is received
 
