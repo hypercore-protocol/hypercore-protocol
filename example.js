@@ -18,29 +18,33 @@ p1.on('handshake', function () {
   console.log('got handshake, remote peer:', p1.remoteId)
 })
 
-p1.on('channel', function (key, channel) {
+p1.on('channel', function (channel) {
   channel.on('ping', function () {
     console.log('got ping')
     channel.close()
   })
+
   channel.on('close', function () {
     console.log('closing shop')
   })
-  channel.on('request', function (block) {
-    console.log('remote requests:', block)
-    channel.response(block, Buffer('hello'))
+
+  channel.on('request', function (message) {
+    console.log('remote requests:', message.block)
+    channel.response({block: message.block, data: Buffer('hello')})
   })
 })
 
-p2.on('channel', function (key, channel) {
+p2.on('channel', function (channel) {
   channel.on('close', function () {
     console.log('closing')
   })
-  channel.request(1)
-  channel.request(2)
+
+  channel.request({block: 1})
+  channel.request({block: 2})
   channel.ping()
-  channel.on('response', function (block, data, proof) {
-    console.log('got response:', block, data, proof)
+
+  channel.on('response', function (message) {
+    console.log('got response:', message)
   })
 })
 

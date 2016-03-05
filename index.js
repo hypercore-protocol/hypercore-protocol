@@ -161,7 +161,7 @@ function use (extensions) {
 
     if (!this._protocol.remoteId) {
       this.handshake({
-        peer: this._protocol.id,
+        peerId: this._protocol.id,
         extensions: extensions
       })
     }
