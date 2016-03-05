@@ -62,7 +62,7 @@ tape('encrypts messages', function (t) {
   })
 
   var ch = p.join(key)
-  ch.response(0, Buffer('hello i should be encrypted.'))
+  ch.response({block: 0, data: Buffer('hello i should be encrypted.')})
   p.end()
 })
 
@@ -78,18 +78,18 @@ tape('remote joins', function (t) {
     remoteJoined--
   })
 
-  ch1.on('request', function (block) {
-    t.same(block, 42, 'received request')
-    ch1.response(42, Buffer('some data'))
+  ch1.on('request', function (request) {
+    t.same(request.block, 42, 'received request')
+    ch1.response({block: 42, data: Buffer('some data')})
   })
 
   var ch2 = p2.join(key)
 
   ch2.request(42)
 
-  ch2.on('response', function (block, data, proof) {
-    t.same(block, 42, 'received response')
-    t.same(data, Buffer('some data'), 'expected data')
+  ch2.on('response', function (response) {
+    t.same(response.block, 42, 'received response')
+    t.same(response.data, Buffer('some data'), 'expected data')
     t.same(remoteJoined, 0, 'both emitted open')
     t.end()
   })

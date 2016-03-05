@@ -7,10 +7,8 @@ var stream = require('readable-stream')
 var events = require('events')
 var sodium = require('sodium-prebuilt').api // TODO: make me work in the browser
 var increment = require('increment-buffer')
-var bitfield = require('bitfield')
 var messages = require('./messages')
 
-var MAX_BITFIELD = 4 * 1024 * 1024
 var MAX_MESSAGE = 5 * 1024 * 1024
 var MAX_EXTENSIONS = 64 // theoretically we can support any amount though
 var MAX_SINGLE_BYTE_VARINT = 127
@@ -52,16 +50,9 @@ function use (extensions) {
     this.id = id
     this.key = null
     this.context = null // someone else can set this
-
     this.remoteOpened = false
     this.opened = false
-
     this.closed = false
-
-    this.remotePausing = true
-    this.pausing = true
-
-    this.remoteBitfield = bitfield(1, {grow: MAX_BITFIELD})
 
     this._secure = protocol._secure !== false
     this._nonce = null
@@ -106,9 +97,9 @@ function use (extensions) {
     this.emit('update')
   }
 
-  Channel.prototype.have = function (blocks, bitfield) {
-    if (typeof blocks === 'number') blocks = [blocks]
-    this._send(2, {blocks: blocks, bitfield: toBuffer(bitfield)})
+  Channel.prototype.have = function (have) {
+    if (typeof have === 'number') this._send(2, {blocks: [have]})
+    else this._send(2, have)
   }
 
   Channel.prototype.resume = function () {
@@ -119,16 +110,18 @@ function use (extensions) {
     this._send(4, null)
   }
 
-  Channel.prototype.request = function (block) {
-    this._send(5, {block: block})
+  Channel.prototype.request = function (request) {
+    if (typeof request === 'number') this._send(5, {block: request})
+    else this._send(5, request)
   }
 
-  Channel.prototype.response = function (block, data, proof) {
-    this._send(6, {block: block, data: data, proof: proof})
+  Channel.prototype.response = function (response) {
+    this._send(6, response)
   }
 
-  Channel.prototype.cancel = function (block) {
-    this._send(7, {block: block})
+  Channel.prototype.cancel = function (cancel) {
+    if (typeof cancel === 'number') this._send(7, {block: cancel})
+    else this._send(7, cancel)
   }
 
   Channel.prototype.remoteSupports = function (id) {
@@ -274,48 +267,27 @@ function use (extensions) {
   }
 
   Channel.prototype._onhave = function (message) {
-    if (this.closed) return
-
-    if (message.bitfield) {
-      // TODO: this should be a proof bitfield instead
-      this.remoteBitfield = bitfield(message.bitfield, {grow: MAX_BITFIELD})
-    }
-
-    var i = 0
-
-    for (i = 0; i < message.blocks.length; i++) {
-      var block = message.blocks[i]
-      this.remoteBitfield.set(block)
-    }
-
-    this.emit('have')
-    this.emit('update')
+    if (!this.closed) this.emit('have')
   }
 
   Channel.prototype._onresume = function () {
-    if (this.closed) return
-    this.remotePausing = false
-    this.emit('resume')
-    this.emit('update')
+    if (this.closed) this.emit('resume')
   }
 
   Channel.prototype._onpause = function () {
-    if (this.closed) return
-    this.remotePausing = true
-    this.emit('pause')
-    this.emit('update')
+    if (!this.closed) this.emit('pause')
   }
 
   Channel.prototype._onrequest = function (message) {
-    if (!this.closed) this.emit('request', message.block)
+    if (!this.closed) this.emit('request', message)
   }
 
   Channel.prototype._onresponse = function (message) {
-    if (!this.closed) this.emit('response', message.block, message.data, message.proof)
+    if (!this.closed) this.emit('response', message)
   }
 
   Channel.prototype._oncancel = function (message) {
-    if (!this.closed) this.emit('cancel', message.block)
+    if (!this.closed) this.emit('cancel', message)
   }
 
   Channel.prototype._decrypt = function (cipher) {
@@ -555,12 +527,6 @@ function assertKey (key) {
 
 function publicId (key) {
   return crypto.createHmac('sha256', key).update('hypercore').digest()
-}
-
-function toBuffer (bitfield) {
-  if (!bitfield) return null
-  if (Buffer.isBuffer(bitfield)) return bitfield
-  return bitfield.buffer
 }
 
 function toString (val) {
