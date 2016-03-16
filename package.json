@@ -1,6 +1,6 @@
 {
   "name": "hypercore-protocol",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Stream that implements the hypercore protocol",
   "main": "index.js",
   "dependencies": {
