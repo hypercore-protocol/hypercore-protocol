@@ -10,6 +10,7 @@ message Handshake {
 
 message Request {
   required uint64 block = 1;
+  optional uint64 digest = 2;
 }
 
 message Response {
@@ -21,7 +22,8 @@ message Response {
 
   required uint64 block = 1;
   required bytes data = 2;
-  repeated Node proof = 3;
+  repeated Node nodes = 3;
+  optional bytes signature = 4;
 }
 
 message Have {
