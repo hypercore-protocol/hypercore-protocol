@@ -5,13 +5,14 @@
   "main": "index.js",
   "dependencies": {
     "brfs": "^1.4.3",
+    "buffer-equals": "^1.0.3",
     "duplexify": "^3.4.3",
     "increment-buffer": "^1.0.0",
     "inherits": "^2.0.1",
     "length-prefixed-stream": "^1.5.0",
     "protocol-buffers": "^3.1.6",
     "readable-stream": "^2.0.5",
-    "sodium-prebuilt": "^1.0.22",
+    "sodium-encryption": "^1.0.1",
     "varint": "^4.0.0"
   },
   "devDependencies": {

@@ -1,31 +1,16 @@
+var crypto = require('crypto')
 var duplexify = require('duplexify')
 var inherits = require('inherits')
-var crypto = require('crypto')
 var varint = require('varint')
-var lpstream = require('length-prefixed-stream')
-var stream = require('readable-stream')
 var events = require('events')
-var sodium = require('sodium-prebuilt').api // TODO: make me work in the browser
-var increment = require('increment-buffer')
 var messages = require('./messages')
+var stream = require('readable-stream')
+var lpstream = require('length-prefixed-stream')
+var encryption = require('sodium-encryption')
+var increment = require('increment-buffer')
+var equals = require('buffer-equals')
 
-var MAX_MESSAGE = 5 * 1024 * 1024
-var MAX_EXTENSIONS = 64 // theoretically we can support any amount though
-var MAX_SINGLE_BYTE_VARINT = 127
-var EXTENSION_OFFSET = 64
 var KEEP_ALIVE = Buffer([0])
-
-var INVALID_EXTENSIONS = [
-  'data',
-  'flush',
-  'close',
-  'drain',
-  'readable',
-  'finish',
-  'prefinish',
-  'error'
-]
-
 var ENCODERS = [
   messages.Handshake,
   null, // close
@@ -40,79 +25,80 @@ var ENCODERS = [
 module.exports = use([])
 
 function use (extensions) {
-  if (extensions.length > MAX_EXTENSIONS) {
-    throw new Error('Only ' + MAX_EXTENSIONS + ' extensions are supported')
+  if (extensions.length > 64) {
+    throw new Error('Only 64 extensions are supported')
   }
 
-  function Channel (protocol, id) {
+  function Channel (stream, publicId) {
     events.EventEmitter.call(this)
 
-    this.id = id
+    this.feed = null
+    this.stream = stream
+    this.publicId = publicId
     this.key = null
-    this.context = null // someone else can set this
-    this.remoteOpened = false
-    this.opened = false
     this.closed = false
 
-    this._secure = protocol._secure !== false
+    this.remotePaused = true
+    this.amPaused = true
+
+    // populated by hypercore. defined here so v8 is happy
+    this.feed = null
+    this.remoteBitfield = null
+    this.remoteTree = null
+
+    this._firstMessage = null
+    this._encrypted = stream.encrypted
+    this._receivedHandshake = false
     this._nonce = null
     this._remoteNonce = null
-    this._buffer = null
-    this._protocol = protocol
-    this._encode = protocol._encode
-    this._localId = 0
-    this._localIdLen = 0
-    this._remoteId = 0
+    this._local = -1
+    this._remote = -1
   }
 
   inherits(Channel, events.EventEmitter)
 
-  Channel.prototype._onopen = function (remoteId, remoteNonce) {
-    if (this.remoteOpened) return
-    this.remoteOpened = true
-
-    this._remoteNonce = remoteNonce
-    this._remoteId = remoteId
-    this._protocol._remote[remoteId] = this
-    this.emit('open')
-  }
-
   Channel.prototype.handshake = function (handshake) {
+    if (!handshake) handshake = {}
+    if (!this.stream.remoteId) {
+      handshake.peerId = this.stream.id
+      handshake.extensions = extensions
+    }
+
+    this.amPaused = !!handshake.paused
     this._send(0, handshake)
   }
 
-  Channel.prototype.close = function () {
-    if (this.closed) return
-    this._send(1)
+  Channel.prototype.close = function (err) {
+    if (err) return this.stream.destroy(err) // fatal close
+
+    var keyHex = this.publicId.toString('hex')
+    if (this.stream._channels[keyHex] !== this) return
+
+    delete this.stream._channels[keyHex]
+    if (this._remote > -1) this.stream._remote[this._remote] = null
+    if (this._local > -1) this.stream._local[this._local] = null
+
     this.closed = true
-    this.remotePausing = true
-    this.pausing = true
-
-    if (this._protocol._local[this._localId] === this) {
-      this._protocol._local[this._localId] = null
-      delete this._protocol._channels[this.id.toString('hex')]
-    }
-
+    this.remotePaused = true
     this.emit('close')
-    this.emit('update')
+
+    if (this.key && !this.stream.destroyed && this._receivedHandshake) this._send(1, null)
   }
 
   Channel.prototype.have = function (have) {
-    if (typeof have === 'number') this._send(2, {blocks: [have]})
-    else this._send(2, have)
-  }
-
-  Channel.prototype.resume = function () {
-    this._send(3, null)
+    this._send(2, have)
   }
 
   Channel.prototype.pause = function () {
+    this._send(3, null)
+  }
+
+  Channel.prototype.resume = function () {
     this._send(4, null)
   }
 
   Channel.prototype.request = function (request) {
-    if (typeof request === 'number') this._send(5, {block: request})
-    else this._send(5, request)
+    this._send(5, request)
   }
 
   Channel.prototype.response = function (response) {
@@ -120,207 +106,205 @@ function use (extensions) {
   }
 
   Channel.prototype.cancel = function (cancel) {
-    if (typeof cancel === 'number') this._send(7, {block: cancel})
-    else this._send(7, cancel)
+    this._send(7, cancel)
   }
 
   Channel.prototype.remoteSupports = function (id) {
-    return this._protocol.remoteSupports(id)
+    return this.stream.remoteSupports(id)
   }
 
   Channel.prototype._open = function (key) {
-    if (this.opened) return
-    this.opened = true
+    if (this.key) return
     this.key = key
 
-    this._localId = this._protocol._local.indexOf(null)
-    if (this._localId === -1) this._localId = this._protocol._local.push(null) - 1
-
-    this._protocol._local[this._localId] = this
+    this._local = this.stream._local.indexOf(null)
+    if (this._local === -1) this._local = this.stream._local.push(null) - 1
+    this.stream[this._local] = this
     this._nonce = crypto.randomBytes(24)
-    this._localIdLen = varint.encodingLength(this._localId)
 
-    var open = {
-      nonce: this._nonce,
-      id: this.id
-    }
-
-    var len = this._localIdLen + messages.Open.encodingLength(open)
+    var open = {publicId: this.publicId, nonce: this._nonce}
+    var len = varint.encodingLength(this._local) + messages.Open.encodingLength(open)
     var buf = Buffer(varint.encodingLength(len) + len)
     var offset = 0
 
-    varint.encode(len, buf, 0)
+    varint.encode(len, buf, offset)
     offset += varint.encode.bytes
 
-    varint.encode(this._localId, buf, offset)
+    varint.encode(this._local, buf, offset)
     offset += varint.encode.bytes
 
     messages.Open.encode(open, buf, offset)
-    this._encode.write(buf)
-    this._protocol._keepAlive = 0
+    offset += messages.Open.encode.bytes
 
-    if (!this._protocol.remoteId) {
-      this.handshake({
-        peerId: this._protocol.id,
-        extensions: extensions
-      })
+    this.stream._encode.push(buf)
+    this.stream._keepAlive = 0
+
+    if (this._firstMessage) {
+      this._parse(this._firstMessage, 0)
+      this._firstMessage = null
     }
-
-    this._protocol.emit('channel', this)
-
-    if (!this._buffer) return
-    while (this._buffer.length) this._onmessage(this._buffer.shift(), 0)
   }
 
-  Channel.prototype._send = function (type, message) {
-    if (this.closed) return
-
-    var enc = ENCODERS[type]
-    var buf = null
-
-    // TODO: add result buffer support to sodium
-
-    if (type >= EXTENSION_OFFSET) {
-      if (!message) message = Buffer(0)
-      buf = Buffer(1 + message.length)
-      message.copy(buf, 1)
-    } else {
-      buf = Buffer(1 + (enc ? enc.encodingLength(message) : 0))
-      if (enc) enc.encode(message, buf, 1)
-    }
-
-    buf[0] = type
-
-    var cipher = this._secure ? this._encrypt(buf) : buf
-    var len = cipher.length + this._localIdLen
-    var container = Buffer(varint.encodingLength(len) + len)
-    var offset = 0
-
-    varint.encode(len, container, offset)
-    offset += varint.encode.bytes
-
-    varint.encode(this._localId, container, offset)
-    offset += varint.encode.bytes
-
-    cipher.copy(container, offset)
-    this._encode.write(container)
-    this._protocol._keepAlive = 0
+  Channel.prototype._encrypt = function (buf) {
+    buf = encryption.encrypt(buf, this._nonce, this.key)
+    if (this._receivedHandshake) increment(this._nonce)
+    return buf
   }
 
-  Channel.prototype._onmessage = function (buf, offset) {
-    if (!this.opened) {
-      if (!this._buffer) this._buffer = []
+  Channel.prototype._decrypt = function (buf) {
+    buf = encryption.decrypt(buf, this._remoteNonce, this.key)
+    if (!buf) return null
+    if (this._receivedHandshake) increment(this._remoteNonce)
+    return buf
+  }
 
-      if (this._buffer.length >= 16) {
-        this.emit('warning', new Error('Buffer overflow'))
-        this.close()
-        return
+  Channel.prototype._parse = function (buf, offset) {
+    if (!this.key) {
+      if (this._firstMessage) {
+        return this.stream.destroy(new Error('Remote send a message before waiting for handshake'))
       }
-
-      this._buffer.push(buf.slice(offset))
+      this._firstMessage = buf.slice(offset)
       return
     }
 
-    var plain = this._secure ? this._decrypt(buf.slice(offset)) : buf.slice(offset)
-    if (!plain) return
+    if (this._encrypted) {
+      buf = this._decrypt(buf.slice(offset))
+      offset = 0
+      if (!buf) return this.stream.destroy(new Error('Could not decrypt message'))
+    }
 
-    var type = plain[0]
-    if (type > MAX_SINGLE_BYTE_VARINT) return
-    if (type >= EXTENSION_OFFSET) return this._onextension(type, plain)
-    if (type >= ENCODERS.length) return
+    var type = buf[offset++]
+    if (type > 127) return this.stream.destroy(new Error('Only single byte bytes currently supported'))
+
+    if (!this._receivedHandshake && type !== 0) {
+      return this.stream.destroy(new Error('First message received should be a handshake'))
+    }
+
+    if (type >= 64) return this._onextension(type - 64, buf.slice(offset))
 
     var enc = ENCODERS[type]
 
     try {
-      var message = enc ? enc.decode(plain, 1) : null
+      var message = enc && enc.decode(buf, offset)
     } catch (err) {
+      this.stream.destroy(err)
       return
     }
 
     switch (type) {
       case 0: return this._onhandshake(message)
-      case 1: return this._onclose()
-      case 2: return this._onhave(message)
-      case 3: return this._onresume()
-      case 4: return this._onpause()
-      case 5: return this._onrequest(message)
-      case 6: return this._onresponse(message)
-      case 7: return this._oncancel(message)
+      case 1: return this.close()
+      case 2: return this.emit('have', message)
+      case 3: return this._onpause()
+      case 4: return this._onresume()
+      case 5: return this.emit('request', message)
+      case 6: return this.emit('response', message)
+      case 7: return this.emit('cancel', message)
     }
   }
 
-  Channel.prototype._onextension = function (type, message) {
-    var ext = this._protocol._remoteExtensions[type - EXTENSION_OFFSET]
-    if (ext > -1) this.emit(extensions[ext], message.slice(1))
-  }
-
-  Channel.prototype._onhandshake = function (handshake) {
-    this._protocol._onhandshake(handshake)
-    if (!this.closed) this.emit('handshake', handshake)
-  }
-
-  Channel.prototype._onclose = function () {
-    if (this._protocol._remote[this._remoteId] === this) {
-      this._protocol._remote[this._remoteId] = null
-      this.close()
-    }
-  }
-
-  Channel.prototype._onhave = function (message) {
-    if (!this.closed) this.emit('have')
-  }
-
-  Channel.prototype._onresume = function () {
-    if (this.closed) this.emit('resume')
+  Channel.prototype._onextension = function (type, buf) {
+    var ext = type < this.stream._remoteExtensions.length ? this.stream._remoteExtensions[type] : -1
+    if (ext > -1) this.emit(extensions[ext], buf)
   }
 
   Channel.prototype._onpause = function () {
-    if (!this.closed) this.emit('pause')
+    if (this.remotePaused) return
+    this.remotePaused = true
+    this.emit('pause')
   }
 
-  Channel.prototype._onrequest = function (message) {
-    if (!this.closed) this.emit('request', message)
+  Channel.prototype._onresume = function () {
+    if (!this.remotePaused) return
+    this.remotePaused = false
+    this.emit('resume')
   }
 
-  Channel.prototype._onresponse = function (message) {
-    if (!this.closed) this.emit('response', message)
+  Channel.prototype._onhandshake = function (handshake) {
+    if (!this.stream.remoteId) this.stream._onhandshake(handshake)
+
+    var nonce = this._nonce
+    var remoteNonce = this._remoteNonce
+
+    this._receivedHandshake = true
+    this._nonce = createNonce(nonce, remoteNonce)
+    this._remoteNonce = createNonce(remoteNonce, nonce)
+    if (equals(this._nonce, this._remoteNonce)) return this.stream.destroy(new Error('Remote nonce is invalid'))
+
+    this.remotePaused = handshake.paused
+    this.emit('handshake', handshake)
   }
 
-  Channel.prototype._oncancel = function (message) {
-    if (!this.closed) this.emit('cancel', message)
+  Channel.prototype._send = function (type, message) {
+    if (this.closed && type !== 1) return
+    if (!this._receivedHandshake && type !== 0) throw new Error('Wait for remote handshake')
+
+    var enc = type < ENCODERS.length ? ENCODERS[type] : null
+    var tmp = Buffer(1 + (enc ? enc.encodingLength(message) : (message ? message.length : 0)))
+
+    tmp[0] = type
+    if (enc) enc.encode(message, tmp, 1)
+    else if (message) message.copy(tmp, 1)
+
+    if (this._encrypted) tmp = this._encrypt(tmp)
+
+    var len = varint.encodingLength(this._local) + tmp.length
+    var buf = Buffer(varint.encodingLength(len) + len)
+    var offset = 0
+
+    varint.encode(len, buf, offset)
+    offset += varint.encode.bytes
+
+    varint.encode(this._local, buf, offset)
+    offset += varint.encode.bytes
+
+    tmp.copy(buf, offset)
+
+    this.stream._encode.push(buf)
+    this.stream._keepAlive = 0
   }
 
-  Channel.prototype._decrypt = function (cipher) {
-    var buf = sodium.crypto_secretbox_open_easy(cipher, this._remoteNonce, this.key)
-    if (buf) increment(this._remoteNonce)
-    return buf
-  }
-
-  Channel.prototype._encrypt = function (message) {
-    var buf = sodium.crypto_secretbox_easy(message, this._nonce, this.key)
-    if (buf) increment(this._nonce)
-    return buf
+  Channel.prototype._onopen = function (message, remote) {
+    this._remote = remote
+    this.stream._remote[remote] = this
+    this._remoteNonce = message.nonce
+    this.emit('open')
   }
 
   extensions.forEach(function (name, id) {
-    if (INVALID_EXTENSIONS.indexOf(name) > -1 || !/^[a-z][_a-z0-9]+$/i.test(name) || Channel.prototype[name]) {
+    if (name === 'error' || !/^[a-z][_a-z0-9]+$/i.test(name) || Channel.prototype[name]) {
       throw new Error('Invalid extension name: ' + name)
     }
 
     Channel.prototype[name] = function (buf) {
-      this._send(id + EXTENSION_OFFSET, buf)
+      this._send(id + 64, buf)
     }
   })
 
-  function Protocol (opts) {
-    if (!(this instanceof Protocol)) return new Protocol(opts)
+  function Protocol (opts, onopen) {
+    if (!(this instanceof Protocol)) return new Protocol(opts, onopen)
     if (!opts) opts = {}
+    if (typeof opts === 'function') {
+      onopen = opts
+      opts = {}
+    }
+
     duplexify.call(this)
 
     var self = this
 
     this.id = opts.id || crypto.randomBytes(32)
     this.remoteId = null
+    this.encrypted = opts.encrypt !== false
+
+    this._channels = {}
+    this._local = []
+    this._remote = []
+    this._onopen = onopen || opts.open || noop
+
+    this._keepAlive = 0
+    this._remoteKeepAlive = 0
+    this._interval = null
 
     this._remoteExtensions = new Array(extensions.length)
     this._localExtensions = new Array(extensions.length)
@@ -328,34 +312,17 @@ function use (extensions) {
       this._remoteExtensions[i] = this._localExtensions[i] = -1
     }
 
-    this._secure = opts.secure !== false
-    this._nonce = null
-    this._encode = stream.PassThrough()
-    this._decode = lpstream.decode({limit: MAX_MESSAGE, allowEmpty: true}).on('data', parse)
-    this._channels = {}
-    this._join = opts.join
-    this._local = []
-    this._remote = []
-    this._keepAliveInterval = null
-    this._keepAlive = 0
-    this._remoteKeepAlive = 0
-
-    this.on('finish', onfinish)
-    this.on('close', onclose)
-
+    this._encode = new stream.Readable()
+    this._encode._read = noop
     this.setReadable(this._encode)
+
+    this._decode = lpstream.decode({allowEmpty: true, limit: 5 * 1024 * 1024})
+    this._decode.on('data', parse)
     this.setWritable(this._decode)
 
-    function onclose () {
-      clearInterval(self._keepAliveInterval)
-      var channels = self.list()
-      for (var i = 0; i < channels.length; i++) channels[i].close()
-    }
-
-    function onfinish () {
-      onclose()
-      self._encode.end()
-    }
+    this.on('end', this.destroy)
+    this.on('finish', this.destroy)
+    this.on('close', this._close)
 
     function parse (data) {
       self._parse(data)
@@ -364,32 +331,9 @@ function use (extensions) {
 
   inherits(Protocol, duplexify)
 
-  Protocol.prototype.setTimeout = function (time, ontimeout) {
-    if (ontimeout) this.once('timeout', ontimeout)
-    var self = this
-
-    this._keepAlive = 0
-    this._remoteKeepAlive = 0
-
-    clearInterval(this._keepAliveInterval)
-    this._keepAliveInterval = setInterval(kick, (time / 4) | 0)
-    if (this._keepAliveInterval) this._keepAliveInterval.unref()
-
-    function kick () {
-      if (self._remoteKeepAlive > 4) {
-        clearInterval(self._keepAliveInterval)
-        self.emit('timeout')
-        return
-      }
-
-      self._remoteKeepAlive++
-      if (self._keepAlive > 2) {
-        self._encode.write(KEEP_ALIVE)
-        self._keepAlive = 0
-      } else {
-        self._keepAlive++
-      }
-    }
+  Protocol.extensions = extensions
+  Protocol.use = function (ext) {
+    return use(extensions.concat(ext).sort().filter(noDups))
   }
 
   Protocol.prototype.remoteSupports = function (id) {
@@ -397,14 +341,98 @@ function use (extensions) {
     return this._localExtensions[i] > -1
   }
 
+  Protocol.prototype.setTimeout = function (ms, ontimeout) {
+    if (ontimeout) this.once('timeout', ontimeout)
+    var self = this
+
+    this._keepAlive = 0
+    this._remoteKeepAlive = 0
+
+    clearInterval(this._interval)
+    this._interval = setInterval(kick, (ms / 4) | 0)
+    if (this._interval) this._interval.unref()
+
+    function kick () {
+      if (self._remoteKeepAlive > 4) {
+        clearInterval(self._interval)
+        self.emit('timeout')
+        return
+      }
+
+      self._remoteKeepAlive++
+      if (self._keepAlive > 2) {
+        self._encode.push(KEEP_ALIVE)
+        self._keepAlive = 0
+      } else {
+        self._keepAlive++
+      }
+    }
+  }
+
+  Protocol.prototype.channel = function (key, publicId) {
+    if (!publicId) publicId = crypto.createHmac('sha256', key).update('hypercore').digest()
+
+    var keyHex = publicId.toString('hex')
+    var channel = this._channels[keyHex]
+
+    if (!channel) channel = this._channels[keyHex] = new Channel(this, publicId)
+    if (channel.key) return channel
+    channel._open(key)
+    return channel
+  }
+
+  Protocol.prototype.keys = function () {
+    var keys = Object.keys(this._channels)
+    var list = []
+    for (var i = 0; i < keys.length; i++) {
+      var key = this._channels[keys[i]].key
+      if (key) list.push(key)
+    }
+    return list
+  }
+
+  Protocol.prototype._close = function () {
+    clearInterval(this._interval)
+    var keys = Object.keys(this._channels)
+    for (var i = 0; i < keys.length; i++) {
+      var ch = this._channels[keys[i]]
+      if (ch.key) ch.close()
+    }
+  }
+
+  Protocol.prototype._parse = function (data) {
+    this._remoteKeepAlive = 0
+    if (!data.length) return
+
+    var remote = varint.decode(data)
+    var offset = varint.decode.bytes
+
+    if (remote === this._remote.length) this._remote.push(null)
+    if (remote > this._remote.length) {
+      return this.destroy(new Error('Received invalid channel'))
+    }
+
+    var channel = this._remote[remote]
+    if (channel) {
+      return channel._parse(data, offset)
+    }
+
+    if (this._remote.indexOf(null) !== remote) {
+      return this.destroy(new Error('Received invalid channel'))
+    }
+
+    this._open(remote, data, offset)
+  }
+
   Protocol.prototype._onhandshake = function (handshake) {
-    if (this.remoteId) return
+    // called with the first handshake
+    this.remoteId = handshake.peerId || crypto.randomBytes(32)
 
     // extensions *must* be sorted
     var local = 0
     var remote = 0
 
-    while (local < extensions.length && remote < handshake.extensions.length && remote < MAX_EXTENSIONS) {
+    while (local < extensions.length && remote < handshake.extensions.length && remote < 64) {
       if (extensions[local] === handshake.extensions[remote]) {
         this._localExtensions[local] = remote
         this._remoteExtensions[remote] = local
@@ -417,122 +445,40 @@ function use (extensions) {
       }
     }
 
-    this.remoteId = handshake.peerId || crypto.randomBytes(32)
     this.emit('handshake')
   }
 
-  Protocol.prototype._parse = function (data) {
-    this._remoteKeepAlive = 0
-    if (!data.length) return
-
-    var remoteId = varint.decode(data, 0)
-    var offset = varint.decode.bytes
-
-    if (remoteId > this._remote.length) return
-    if (remoteId === this._remote.length) this._remote.push(null)
-
-    if (!this._remote[remoteId]) {
-      try {
-        var open = messages.Open.decode(data, offset)
-      } catch (err) {
-        return
-      }
-
-      if (open.nonce.length === 24 && open.id.length === 32) {
-        this._onjoin(open, remoteId)
-      }
+  Protocol.prototype._open = function (remote, data, offset) {
+    try {
+      var open = messages.Open.decode(data, offset)
+    } catch (err) {
       return
     }
 
-    this._remote[remoteId]._onmessage(data, offset)
-  }
+    if (open.publicId.length !== 32 || open.nonce.length !== 24) return
 
-  Protocol.prototype._onjoin = function (open, remoteId) {
-    var self = this
-    var idHex = open.id.toString('hex')
-    var ch = this._channels[idHex]
+    var keyHex = open.publicId.toString('hex')
+    var channel = this._channels[keyHex]
 
-    if (ch) {
-      ch._onopen(remoteId, open.nonce)
+    if (channel) {
+      channel._onopen(open, remote)
       return
     }
 
-    if (!this._join) return
-
-    ch = this._channels[idHex] = new Channel(this, open.id)
-    ch._onopen(remoteId, open.nonce)
-
-    this._join(open.id, function (err, key) {
-      if (ch !== self._channels[idHex]) return // changed underneath us
-
-      if (err) {
-        ch.close()
-        return
-      }
-
-      ch._open(key)
-    })
-  }
-
-  Protocol.extensions = extensions
-  Protocol.use = function (name) {
-    return use(extensions.concat(name).sort().map(toString).filter(noDups))
-  }
-
-  Protocol.prototype.list = function () {
-    var keys = Object.keys(this._channels)
-    var list = []
-
-    for (var i = 0; i < keys.length; i++) {
-      var ch = this._channels[keys[i]]
-      if (ch.key) list.push(ch)
-    }
-
-    return list
-  }
-
-  Protocol.prototype.leave = function (key) {
-    assertKey(key)
-
-    var id = publicId(key)
-    var idHex = id.toString('hex')
-    var ch = this._channels[idHex]
-
-    if (ch) ch.close()
-  }
-
-  Protocol.prototype.join = function (key) {
-    assertKey(key)
-
-    var id = publicId(key)
-    var idHex = id.toString('hex')
-    var ch = this._channels[idHex]
-
-    if (ch) {
-      ch._open(key)
-      return ch
-    }
-
-    ch = this._channels[idHex] = new Channel(this, id)
-    ch._open(key)
-    return ch
+    channel = this._channels[keyHex] = new Channel(this, open.publicId)
+    channel._onopen(open, remote)
+    this._onopen(open.publicId)
   }
 
   return Protocol
 }
 
-function assertKey (key) {
-  if (!Buffer.isBuffer(key) || key.length !== 32) throw new Error('Key should be a 32 byte buffer')
+function noop () {}
+
+function createNonce (a, b) {
+  return crypto.createHash('sha256').update(a).update(b).digest().slice(0, 24)
 }
 
-function publicId (key) {
-  return crypto.createHmac('sha256', key).update('hypercore').digest()
-}
-
-function toString (val) {
-  return val.toString()
-}
-
-function noDups (val, i, list) {
-  return list.indexOf(val) === i
+function noDups (name, i, extensions) {
+  return extensions.indexOf(name) === i
 }

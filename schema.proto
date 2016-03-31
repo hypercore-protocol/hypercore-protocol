@@ -1,11 +1,13 @@
 message Open {
   required bytes nonce = 1;
-  required bytes id = 2;
+  required bytes publicId = 2;
 }
 
 message Handshake {
   optional bytes peerId = 1;
   repeated string extensions = 2;
+  optional bool paused = 3;
+  optional bytes bitfield = 4;
 }
 
 message Request {
@@ -19,7 +21,6 @@ message Response {
     required uint64 size = 2;
     required bytes hash = 3;
   }
-
   required uint64 block = 1;
   required bytes data = 2;
   repeated Node nodes = 3;
@@ -27,9 +28,8 @@ message Response {
 }
 
 message Have {
-  repeated uint64 blocks = 1 [packed = true];
-  optional bytes bitfield = 2;
-  repeated uint64 range = 3 [packed = true];
+  required uint64 start = 1;
+  optional uint64 end = 2;
 }
 
 message Cancel {

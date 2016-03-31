@@ -4,74 +4,125 @@ var protocol = require('./')
 var key = Buffer('12345678123456781234567812345678')
 var otherKey = Buffer('01234567012345670123456701234567')
 
-tape('join emits channel', function (t) {
+tape('join channel', function (t) {
   var p = protocol()
+  var ch = p.channel(key)
 
-  p.on('channel', function (channel) {
-    process.nextTick(function () { // channel is emitted in same tick
-      t.same(channel.key.toString('hex'), key.toString('hex'), 'same key')
-      t.ok(ch === channel, 'same channel instance')
-      t.end()
-    })
-  })
-
-  var ch = p.join(key)
+  t.same(ch.key.toString('hex'), key.toString('hex'), 'same key')
+  t.end()
 })
 
 tape('join two channels', function (t) {
   var p = protocol()
-  var expected = [key, otherKey]
 
-  p.on('channel', function (channel) {
-    t.same(channel.key, expected.shift(), 'expected channel key')
-  })
+  var channel = p.channel(key)
+  var otherChannel = p.channel(otherKey)
 
-  p.join(key)
-  p.join(otherKey)
-  t.same(p.list().map(toKey), [key, otherKey], 'joined both channels')
-  t.same(expected.length, 0, 'fired both events')
+  t.same(channel.key, key, 'expected channel key')
+  t.same(otherChannel.key, otherKey, 'expected channel key')
+  t.same(p.keys(), [key, otherKey], 'joined both channels')
   t.end()
-
-  function toKey (ch) {
-    return ch.key
-  }
 })
 
 tape('join and leave', function (t) {
   var p = protocol()
 
-  t.same(p.list().map(toKey), [], 'not in any channel')
-  p.join(key)
-  t.same(p.list().map(toKey), [key], 'joined channel')
-  p.leave(otherKey)
-  t.same(p.list().map(toKey), [key], 'joined channel')
-  p.leave(key)
-  t.same(p.list().map(toKey), [], 'not in any channel')
+  t.same(p.keys(), [], 'not in any channel')
+  var ch = p.channel(key)
+  t.same(p.keys(), [key], 'joined channel')
+  ch.close()
+  t.same(p.keys(), [], 'not in any channel')
+  ch.close()
+  t.same(p.keys(), [], 'not in any channel')
   t.end()
-
-  function toKey (ch) {
-    return ch.key
-  }
 })
 
 tape('encrypts messages', function (t) {
-  var p = protocol()
+  var p1 = protocol()
+  var p2 = protocol()
   var buf = []
 
-  p.on('data', function (data) {
+  p1.on('data', function (data) {
     buf.push(data)
   })
 
-  p.on('end', function () {
+  p1.on('finish', function () {
     buf = Buffer.concat(buf)
     t.ok(buf.length > 32 + 20 + 25, 'sending some data') // ~ hmac + nonce + data
     t.same(buf.toString().indexOf('hello i should be encrypted'), -1, 'does not contain plaintext')
     t.end()
   })
 
-  var ch = p.join(key)
-  ch.response({block: 0, data: Buffer('hello i should be encrypted.')})
-  p.end()
+  var ch1 = p1.channel(key)
+  var ch2 = p2.channel(key)
+
+  ch1.handshake()
+  ch2.handshake()
+
+  ch1.on('handshake', function () {
+    t.pass('received handshake')
+    ch1.response({block: 0, data: Buffer('hello i should be encrypted.')})
+    p1.end()
+  })
+
+  p1.pipe(p2).pipe(p1)
+})
+
+tape('does not encrypt messages if encrypt === false', function (t) {
+  var p1 = protocol({encrypt: false})
+  var p2 = protocol({encrypt: false})
+  var buf = []
+
+  p1.on('data', function (data) {
+    buf.push(data)
+  })
+
+  p1.on('finish', function () {
+    buf = Buffer.concat(buf)
+    t.ok(buf.length > 32 + 20 + 25, 'sending some data') // ~ hmac + nonce + data
+    t.ok(buf.toString().indexOf('hello i should not be encrypted') > -1, 'does contain plaintext')
+    t.end()
+  })
+
+  var ch1 = p1.channel(key)
+  var ch2 = p2.channel(key)
+
+  ch1.handshake()
+  ch2.handshake()
+
+  ch1.on('handshake', function () {
+    t.pass('received handshake')
+    ch1.response({block: 0, data: Buffer('hello i should not be encrypted.')})
+    p1.end()
+  })
+
+  p1.pipe(p2).pipe(p1)
+})
+
+tape('one side encryption returns error', function (t) {
+  var p1 = protocol({encrypt: false})
+  var p2 = protocol()
+
+  var ch1 = p1.channel(key)
+  var ch2 = p2.channel(key)
+
+  ch1.handshake()
+  ch2.handshake()
+
+  ch1.on('handshake', function () {
+    t.fail('received handshake')
+  })
+
+  p1.on('error', function () {
+    // there might be an error here as well
+  })
+
+  p2.on('error', function (err) {
+    t.ok(err, 'had error')
+    t.end()
+  })
+
+  p1.pipe(p2).pipe(p1)
 })
 
 tape('remote joins', function (t) {
@@ -79,7 +130,9 @@ tape('remote joins', function (t) {
   var p2 = protocol()
   var remoteJoined = 2
 
-  var ch1 = p1.join(key)
+  var ch1 = p1.channel(key)
+
+  ch1.handshake()
 
   ch1.once('open', function () {
     t.pass('remote joined')
@@ -91,9 +144,13 @@ tape('remote joins', function (t) {
     ch1.response({block: 42, data: Buffer('some data')})
   })
 
-  var ch2 = p2.join(key)
+  var ch2 = p2.channel(key)
 
-  ch2.request(42)
+  ch2.handshake()
+
+  p1.on('handshake', function () {
+    ch2.request({block: 42})
+  })
 
   ch2.on('response', function (response) {
     t.same(response.block, 42, 'received response')
@@ -115,13 +172,10 @@ tape('remote joins and closes', function (t) {
   var remoteClose = false
 
   var p1 = protocol()
-  var p2 = protocol({
-    join: function (id, cb) {
-      cb(null, key)
-    }
-  })
+  var p2 = protocol(function (publicId) {
+    var channel = p2.channel(key)
 
-  p2.on('channel', function (channel) {
+    channel.handshake()
     channel.on('close', function () {
       remoteClose = true
       t.ok(localClose, 'local closed')
@@ -130,13 +184,18 @@ tape('remote joins and closes', function (t) {
     })
   })
 
-  var ch1 = p1.join(key)
+  var channel = p1.channel(key)
 
-  ch1.on('close', function () {
+  channel.on('close', function () {
     localClose = true
   })
 
-  ch1.close()
+  channel.on('handshake', function () {
+    channel.close()
+  })
+
+  channel.handshake()
+
   p1.pipe(p2).pipe(p1)
 })
 
@@ -207,8 +266,8 @@ tape('leave channels on close', function (t) {
   t.plan(2)
 
   var p1 = protocol()
-  var c1 = p1.join(key)
-  var c2 = p1.join(otherKey)
+  var c1 = p1.channel(key)
+  var c2 = p1.channel(otherKey)
 
   c1.once('close', function () {
     t.pass('first channel closed')
@@ -228,8 +287,11 @@ tape('extension', function (t) {
   var p1 = protocol1()
   var p2 = protocol1()
 
-  var ch1 = p1.join(key)
-  var ch2 = p2.join(key)
+  var ch1 = p1.channel(key)
+  var ch2 = p2.channel(key)
+
+  ch1.handshake()
+  ch2.handshake()
 
   p1.once('handshake', function () {
     t.ok(p1.remoteSupports('test'), 'protocol supported')
@@ -239,12 +301,15 @@ tape('extension', function (t) {
     t.ok(p2.remoteSupports('test'), 'protocol supported')
   })
 
+  ch2.on('handshake', function () {
+    ch2.test(Buffer('hello world'))
+  })
+
   ch1.once('test', function (buf) {
     t.same(buf, Buffer('hello world'), 'same buffer')
     ch1.test(Buffer('HELLO WORLD'))
   })
 
-  ch2.test(Buffer('hello world'))
   ch2.once('test', function (buf) {
     t.same(buf, Buffer('HELLO WORLD'), 'same buffer')
   })
@@ -260,8 +325,11 @@ tape('different extensions', function (t) {
   var p1 = protocol1()
   var p2 = protocol2()
 
-  var ch1 = p1.join(key)
-  var ch2 = p2.join(key)
+  var ch1 = p1.channel(key)
+  var ch2 = p2.channel(key)
+
+  ch1.handshake()
+  ch2.handshake()
 
   p1.once('handshake', function () {
     t.ok(!p1.remoteSupports('foo'), 'protocol not supported')
@@ -280,9 +348,52 @@ tape('different extensions', function (t) {
     ch1.test(Buffer('HELLO WORLD'))
   })
 
-  ch2.test(Buffer('hello world'))
+  ch2.on('handshake', function () {
+    ch2.test(Buffer('hello world'))
+  })
+
   ch2.once('test', function (buf) {
     t.same(buf, Buffer('HELLO WORLD'), 'same buffer')
+  })
+
+  p1.pipe(p2).pipe(p1)
+})
+
+tape('ignore unsupported message', function (t) {
+  t.plan(6)
+
+  var protocol2 = protocol.use(['test', 'bar'])
+  var p1 = protocol()
+  var p2 = protocol2()
+
+  var ch1 = p1.channel(key)
+  var ch2 = p2.channel(key)
+
+  ch1.handshake()
+  ch2.handshake()
+
+  p1.once('handshake', function () {
+    t.ok(!p1.remoteSupports('foo'), 'protocol not supported')
+    t.ok(!p1.remoteSupports('bar'), 'protocol not supported')
+    t.ok(!p1.remoteSupports('test'), 'protocol not supported')
+  })
+
+  p2.once('handshake', function () {
+    t.ok(!p2.remoteSupports('foo'), 'protocol not supported')
+    t.ok(!p2.remoteSupports('bar'), 'protocol not supported')
+    t.ok(!p2.remoteSupports('test'), 'protocol not supported')
+  })
+
+  ch1.once('test', function () {
+    t.fail('ch1 does not support test')
+  })
+
+  ch2.on('handshake', function () {
+    ch2.test(Buffer('hello world'))
+  })
+
+  ch2.once('test', function (buf) {
+    t.fail('ch1 does not support test')
   })
 
   p1.pipe(p2).pipe(p1)

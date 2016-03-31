@@ -29,22 +29,21 @@ stream.pipe().pipe(stream)
 
 ## API
 
-#### `var p = protocol([options])`
+#### `var p = protocol([options], [onopen])`
 
 Create a new protocol instance. The returned object is a duplex stream
 that you should pipe to another protocol instance over a stream based transport
 
-If the remote peer joins a channel you haven't joined, hypercore will call an optional `join`
-method if you specify it in the options map with the public id for that channel and a callback.
+If the remote peer joins a channel you haven't opened, hypercore will call an optional `onopen`
+method if you specify it with the public id for that channel.
 
 ``` js
-var p = protocol({
-  join: function (publicId, cb) {
-    // remote peer joined publicId but you haven't
-    // call the callback with the corresponding key for publicId
-    // if you want to join this channel as well or an error otherwise
-    cb(null, Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
-  }
+var p = protocol(function (publicId) {
+  // remote peer joined publicId but you haven't
+  // you can open the channel now if you want to join the channel
+
+  // open with corresponding key to join
+  var channel = p.open(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
 })
 ```
 
@@ -54,34 +53,24 @@ Other options include:
 ``` js
 {
   id: optionalPeerId, // you can use this to detect if you connect to yourself
-  secure: true // set to false to disable encryption for debugging purposes
+  encrypt: true // set to false to disable encryption for debugging purposes
 }
 ```
 
 If you don't specify a peer id a random 32 byte will be used.
 You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
 
-#### `var channel = p.join(key)`
+#### `var channel = p.open(key, [publicId])`
 
-Join a stream channel. A channel uses the [sodium](https://github.com/mafintosh/sodium-prebuilt) module to encrypt all messages using the key you specify. An HMAC of the string `hypercore` using the key as the password serves as a public id for a channel and is send unencrypted together with a nonce.
-
-#### `p.leave(key)`
-
-Leave a channel. Same as calling `channel.close()`
+Open a stream channel. A channel uses the [sodium](https://github.com/mafintosh/sodium-prebuilt) module to encrypt all messages using the key you specify. The public id for the channel is send unencrypted together with a random 24 byte nonce. If you do not specify a public id, an HMAC of the string `hypercore` using the key as the password will be used.
 
 #### `p.on('handshake')`
 
-Emitted when a protocol handshake has been received. The protocol handshake is sent
-over the first encrypted channel you and the remote peer joins.
-Afterwards you can check `.remoteId` to get the remote peer id.
+Emitted when a protocol handshake has been received. Afterwards you can check `.remoteId` to get the remote peer id.
 
-#### `p.on('channel', channel)`
+#### `var keys = p.keys()`
 
-Emitted when you join a channel.
-
-#### `var channels = p.list()`
-
-Lists all the channels you have joined
+Lists the keys of all the channels you have opened
 
 #### `p.setTimeout(ms, [ontimeout])`
 
@@ -91,6 +80,16 @@ message to the other peer if you've been inactive for `ms / 2`
 
 ## Channel API
 
+#### `channel.handshake(message)`
+
+This should be the first message you send. The `peerId` and `extensions` field
+will be automatically populated for you. See the protobuf schema or more information.
+
+#### `channel.on('handshake', message)`
+
+Emitted when the other peer sends a handshake. You should wait for this event
+to be emitted before sending any messages.
+
 #### `channel.close()`
 
 Closes a channel
@@ -99,11 +98,6 @@ Closes a channel
 
 Emitted when a channel is closed, either by you or the remote peer.
 No other events will be emitted after this.
-
-#### `channel.on('open')`
-
-Emitted when the channel is fully open (both you and the remote peer joined).
-You can send messages to the remote peer before this has been emitted.
 
 #### `channel.request(message)`
 
@@ -153,6 +147,9 @@ Send a pause signal
 
 Emitted when a pause signal is received
 
+You can always check the paused state by accessing `.remotePaused` and `.amPaused`
+to see wheather or not the remote is pausing us or we are pausing the remote.
+
 ## Extension API
 
 #### `protocol = protocol.use(extension)`
@@ -166,13 +163,15 @@ and emit an event with the same name when an extension message is received
 protocol = protocol.use('ping')
 
 var p = protocol()
-var channel = p.join(someKey)
+var channel = p.open(someKey)
 
-channel.on('ping', function (message) {
-  console.log('received ping message')
+channel.on('handshake', function () {
+  channel.on('ping', function (message) {
+    console.log('received ping message')
+  })
+
+  channel.ping(Buffer('this is a ping message!'))
 })
-
-channel.ping(Buffer('this is a ping message!'))
 ```
 
 #### `var bool = p.remoteSupports(extension)`
