@@ -15,16 +15,22 @@ var protocol = require('hypercore-protocol')
 
 var p = protocol()
 
-// join a channel specified by a 32 byte key
-var channel = p.join(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
+// open a channel specified by a 32 byte key
+var channel = p.open(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
 
-// request block 42
-channel.request({block: 42})
+// send a handshake
+channel.handshake()
+
+channel.on('handshake', function () {
+  // request block 42
+  channel.request({block: 42})
+})
+
 channel.on('response', function (message) {
   console.log(message) // contains message.block and message.data
 })
 
-stream.pipe().pipe(stream)
+stream.pipe(anotherStream).pipe(stream)
 ```
 
 ## API
