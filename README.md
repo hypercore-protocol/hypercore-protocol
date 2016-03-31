@@ -16,7 +16,7 @@ var protocol = require('hypercore-protocol')
 var p = protocol()
 
 // open a channel specified by a 32 byte key
-var channel = p.open(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
+var channel = p.channel(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
 
 // send a handshake
 channel.handshake()
@@ -49,7 +49,7 @@ var p = protocol(function (publicId) {
   // you can open the channel now if you want to join the channel
 
   // open with corresponding key to join
-  var channel = p.open(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
+  var channel = p.channel(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
 })
 ```
 
@@ -66,7 +66,7 @@ Other options include:
 If you don't specify a peer id a random 32 byte will be used.
 You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
 
-#### `var channel = p.open(key, [publicId])`
+#### `var channel = p.channel(key, [publicId])`
 
 Open a stream channel. A channel uses the [sodium](https://github.com/mafintosh/sodium-prebuilt) module to encrypt all messages using the key you specify. The public id for the channel is send unencrypted together with a random 24 byte nonce. If you do not specify a public id, an HMAC of the string `hypercore` using the key as the password will be used.
 
@@ -169,7 +169,7 @@ and emit an event with the same name when an extension message is received
 protocol = protocol.use('ping')
 
 var p = protocol()
-var channel = p.open(someKey)
+var channel = p.channel(someKey)
 
 channel.on('handshake', function () {
   channel.on('ping', function (message) {
