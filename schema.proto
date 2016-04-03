@@ -7,7 +7,20 @@ message Handshake {
   optional bytes peerId = 1;
   repeated string extensions = 2;
   optional bool paused = 3;
-  optional bytes bitfield = 4;
+
+  optional Want want = 4;
+  optional Have have = 5;
+}
+
+message Have {
+  required uint64 start = 1;
+  optional uint64 end = 2;
+  optional bytes bitfield = 3;
+}
+
+message Want {
+  required uint64 start = 1;
+  optional uint64 end = 2;
 }
 
 message Request {
@@ -21,15 +34,11 @@ message Response {
     required uint64 size = 2;
     required bytes hash = 3;
   }
+
   required uint64 block = 1;
   required bytes data = 2;
   repeated Node nodes = 3;
   optional bytes signature = 4;
-}
-
-message Have {
-  required uint64 start = 1;
-  optional uint64 end = 2;
 }
 
 message Cancel {

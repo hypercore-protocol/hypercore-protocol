@@ -14,9 +14,10 @@ var KEEP_ALIVE = Buffer([0])
 var ENCODERS = [
   messages.Handshake,
   null, // close
-  messages.Have,
   null, // pause
   null, // resume
+  messages.Have,
+  messages.Want,
   messages.Request,
   messages.Response,
   messages.Cancel
@@ -85,28 +86,32 @@ function use (extensions) {
     if (this.key && !this.stream.destroyed && this._receivedHandshake) this._send(1, null)
   }
 
-  Channel.prototype.have = function (have) {
-    this._send(2, have)
-  }
-
   Channel.prototype.pause = function () {
-    this._send(3, null)
+    this._send(2, null)
   }
 
   Channel.prototype.resume = function () {
-    this._send(4, null)
+    this._send(3, null)
+  }
+
+  Channel.prototype.have = function (have) {
+    this._send(4, have)
+  }
+
+  Channel.prototype.want = function (want) {
+    this._send(5, want)
   }
 
   Channel.prototype.request = function (request) {
-    this._send(5, request)
+    this._send(6, request)
   }
 
   Channel.prototype.response = function (response) {
-    this._send(6, response)
+    this._send(7, response)
   }
 
   Channel.prototype.cancel = function (cancel) {
-    this._send(7, cancel)
+    this._send(8, cancel)
   }
 
   Channel.prototype.remoteSupports = function (id) {
@@ -194,12 +199,13 @@ function use (extensions) {
     switch (type) {
       case 0: return this._onhandshake(message)
       case 1: return this.close()
-      case 2: return this.emit('have', message)
-      case 3: return this._onpause()
-      case 4: return this._onresume()
-      case 5: return this.emit('request', message)
-      case 6: return this.emit('response', message)
-      case 7: return this.emit('cancel', message)
+      case 2: return this._onpause()
+      case 3: return this._onresume()
+      case 4: return this.emit('have', message)
+      case 5: return this.emit('want', message)
+      case 6: return this.emit('request', message)
+      case 7: return this.emit('response', message)
+      case 8: return this.emit('cancel', message)
     }
   }
 
