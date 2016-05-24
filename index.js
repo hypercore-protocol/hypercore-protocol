@@ -230,6 +230,7 @@ function use (extensions) {
         return
       }
 
+      self._tick()
       self._remoteKeepAlive++
       if (self._keepAlive > 2) {
         self._encode.push(KEEP_ALIVE)
