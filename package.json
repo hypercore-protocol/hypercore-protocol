@@ -4,20 +4,21 @@
   "description": "Stream that implements the hypercore protocol",
   "main": "index.js",
   "dependencies": {
-    "brfs": "^1.4.3",
     "buffer-equals": "^1.0.3",
     "duplexify": "^3.4.3",
     "increment-buffer": "^1.0.0",
     "inherits": "^2.0.1",
     "length-prefixed-stream": "^1.5.0",
+    "passthrough-encoding": "^1.2.0",
     "protocol-buffers": "^3.1.6",
-    "readable-stream": "^2.0.5",
-    "sodium-encryption": "^1.0.1",
-    "varint": "^4.0.0"
+    "readable-stream": "^2.1.4",
+    "sodium-encryption": "^1.1.0",
+    "varint": "^4.0.0",
+    "xtend": "^4.0.1"
   },
   "devDependencies": {
-    "standard": "^6.0.7",
-    "tape": "^4.5.0"
+    "standard": "^7.1.0",
+    "tape": "^4.5.1"
   },
   "scripts": {
     "test": "standard && tape test.js"

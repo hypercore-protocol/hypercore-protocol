@@ -2,201 +2,187 @@ var tape = require('tape')
 var protocol = require('./')
 
 var key = Buffer('12345678123456781234567812345678')
-var otherKey = Buffer('01234567012345670123456701234567')
+var otherKey = Buffer('02345678123456781234567812345678')
 
-tape('join channel', function (t) {
-  var p = protocol()
-  var ch = p.channel(key)
+tape('open channel', function (t) {
+  t.plan(3)
 
-  t.same(ch.key.toString('hex'), key.toString('hex'), 'same key')
-  t.end()
-})
+  var stream1 = protocol()
+  var stream2 = protocol()
 
-tape('join two channels', function (t) {
-  var p = protocol()
+  var channel1 = stream1.open(key)
+  var channel2 = stream2.open(key)
 
-  var channel = p.channel(key)
-  var otherChannel = p.channel(otherKey)
-
-  t.same(channel.key, key, 'expected channel key')
-  t.same(otherChannel.key, otherKey, 'expected channel key')
-  t.same(p.keys(), [key, otherKey], 'joined both channels')
-  t.end()
-})
-
-tape('join and leave', function (t) {
-  var p = protocol()
-
-  t.same(p.keys(), [], 'not in any channel')
-  var ch = p.channel(key)
-  t.same(p.keys(), [key], 'joined channel')
-  ch.close()
-  t.same(p.keys(), [], 'not in any channel')
-  ch.close()
-  t.same(p.keys(), [], 'not in any channel')
-  t.end()
-})
-
-tape('encrypts messages', function (t) {
-  var p1 = protocol()
-  var p2 = protocol()
-  var buf = []
-
-  p1.on('data', function (data) {
-    buf.push(data)
+  channel1.request({
+    block: 10
   })
 
-  p1.on('finish', function () {
-    buf = Buffer.concat(buf)
-    t.ok(buf.length > 32 + 20 + 25, 'sending some data') // ~ hmac + nonce + data
-    t.same(buf.toString().indexOf('hello i should be encrypted'), -1, 'does not contain plaintext')
+  channel1.once('data', function (message) {
+    t.same(message.block, 10, 'same block')
+    t.same(message.value, Buffer('hello world'), 'same value')
+  })
+
+  channel2.once('request', function (message) {
+    t.same(message.block, 10, 'same block')
+    channel2.data({block: 10, value: Buffer('hello world')})
+  })
+
+  stream1.pipe(stream2).pipe(stream1)
+})
+
+tape('async open', function (t) {
+  t.plan(3)
+
+  var stream1 = protocol()
+  var stream2 = protocol(function () {
+    setTimeout(function () {
+      var channel2 = stream2.open(key)
+      channel2.once('request', function (message) {
+        t.same(message.block, 10, 'same block')
+        channel2.data({block: 10, value: Buffer('hello world')})
+      })
+    }, 100)
+  })
+
+  var channel1 = stream1.open(key)
+
+  channel1.request({
+    block: 10
+  })
+
+  channel1.once('data', function (message) {
+    t.same(message.block, 10, 'same block')
+    t.same(message.value, Buffer('hello world'), 'same value')
+  })
+
+  stream1.pipe(stream2).pipe(stream1)
+})
+
+tape('empty messages work', function (t) {
+  t.plan(2)
+
+  var stream1 = protocol()
+  var stream2 = protocol()
+
+  var channel1 = stream1.open(key)
+  var channel2 = stream2.open(key)
+
+  channel1.pause()
+
+  channel1.once('resume', function (message) {
+    t.pass('resumed')
+  })
+
+  channel2.once('pause', function (message) {
+    t.pass('paused')
+    channel2.resume()
+  })
+
+  stream1.pipe(stream2).pipe(stream1)
+})
+
+tape('is encrypted', function (t) {
+  var stream1 = protocol()
+  var stream2 = protocol()
+
+  var channel1 = stream1.open(key)
+  var channel2 = stream2.open(key)
+
+  channel1.on('data', function (message) {
+    t.same(message.block, 10, 'same block')
+    t.same(message.value, Buffer('hello world'), 'same value')
     t.end()
   })
 
-  var ch1 = p1.channel(key)
-  var ch2 = p2.channel(key)
-
-  ch1.handshake()
-  ch2.handshake()
-
-  ch1.on('handshake', function () {
-    t.pass('received handshake')
-    ch1.response({block: 0, data: Buffer('hello i should be encrypted.')})
-    p1.end()
+  stream2.on('data', function (data) {
+    t.ok(data.toString().indexOf('hello world') === -1, 'is encrypted')
   })
 
-  p1.pipe(p2).pipe(p1)
+  stream1.pipe(stream2).pipe(stream1)
+
+  channel2.data({block: 10, value: Buffer('hello world')})
 })
 
-tape('does not encrypt messages if encrypt === false', function (t) {
-  var p1 = protocol({encrypt: false})
-  var p2 = protocol({encrypt: false})
-  var buf = []
+tape('can disable encryption', function (t) {
+  var stream1 = protocol({private: false})
+  var stream2 = protocol({private: false})
 
-  p1.on('data', function (data) {
-    buf.push(data)
-  })
+  var foundHello = false
+  var channel1 = stream1.open(key)
+  var channel2 = stream2.open(key)
 
-  p1.on('finish', function () {
-    buf = Buffer.concat(buf)
-    t.ok(buf.length > 32 + 20 + 25, 'sending some data') // ~ hmac + nonce + data
-    t.ok(buf.toString().indexOf('hello i should not be encrypted') > -1, 'does contain plaintext')
+  channel1.on('data', function (message) {
+    t.same(message.block, 10, 'same block')
+    t.same(message.value, Buffer('hello world'), 'same value')
+    t.ok(foundHello, 'sent in plain text')
     t.end()
   })
 
-  var ch1 = p1.channel(key)
-  var ch2 = p2.channel(key)
-
-  ch1.handshake()
-  ch2.handshake()
-
-  ch1.on('handshake', function () {
-    t.pass('received handshake')
-    ch1.response({block: 0, data: Buffer('hello i should not be encrypted.')})
-    p1.end()
+  stream2.on('data', function (data) {
+    if (!foundHello) foundHello = data.toString().indexOf('hello world') > -1
   })
 
-  p1.pipe(p2).pipe(p1)
+  stream1.pipe(stream2).pipe(stream1)
+
+  channel2.data({block: 10, value: Buffer('hello world')})
 })
 
-tape('one side encryption returns error', function (t) {
-  var p1 = protocol({encrypt: false})
-  var p2 = protocol()
+tape('end channel', function (t) {
+  t.plan(3)
 
-  var ch1 = p1.channel(key)
-  var ch2 = p2.channel(key)
+  var stream1 = protocol()
+  var stream2 = protocol()
 
-  ch1.handshake()
-  ch2.handshake()
+  var c1 = stream1.open(key)
+  var c2 = stream2.open(key)
 
-  ch1.on('handshake', function () {
-    t.fail('received handshake')
+  c2.on('request', function () {
+    t.pass('received request')
   })
 
-  p1.on('error', function () {
-    // there might be an error here as well
+  c2.on('end', function () {
+    t.pass('channel ended')
   })
 
-  p2.on('error', function (err) {
-    t.ok(err, 'had error')
-    t.end()
+  c1.on('end', function () {
+    t.pass('channel ended')
   })
 
-  p1.pipe(p2).pipe(p1)
+  c1.on('open', function () {
+    c1.request({block: 10})
+    c1.end()
+  })
+
+  stream1.pipe(stream2).pipe(stream1)
 })
 
-tape('remote joins', function (t) {
-  var p1 = protocol()
-  var p2 = protocol()
-  var remoteJoined = 2
+tape('destroy ends all channels', function (t) {
+  t.plan(3)
 
-  var ch1 = p1.channel(key)
+  var stream1 = protocol()
+  var stream2 = protocol()
 
-  ch1.handshake()
+  var c1 = stream1.open(key)
+  var other = stream1.open(otherKey)
+  var c2 = stream2.open(key)
 
-  ch1.once('open', function () {
-    t.pass('remote joined')
-    remoteJoined--
+  other.on('end', function () {
+    t.pass('channel ended')
   })
 
-  ch1.on('request', function (request) {
-    t.same(request.block, 42, 'received request')
-    ch1.response({block: 42, data: Buffer('some data')})
+  c1.on('end', function () {
+    t.pass('channel ended')
   })
 
-  var ch2 = p2.channel(key)
-
-  ch2.handshake()
-
-  p1.on('handshake', function () {
-    ch2.request({block: 42})
+  c2.on('end', function () {
+    t.pass('channel ended')
   })
 
-  ch2.on('response', function (response) {
-    t.same(response.block, 42, 'received response')
-    t.same(response.data, Buffer('some data'), 'expected data')
-    t.same(remoteJoined, 0, 'both emitted open')
-    t.end()
-  })
+  stream1.pipe(stream2).pipe(stream1)
 
-  ch2.once('open', function () {
-    t.pass('remote joined')
-    remoteJoined--
-  })
-
-  p1.pipe(p2).pipe(p1)
-})
-
-tape('remote joins and closes', function (t) {
-  var localClose = false
-  var remoteClose = false
-
-  var p1 = protocol()
-  var p2 = protocol(function (publicId) {
-    var channel = p2.channel(key)
-
-    channel.handshake()
-    channel.on('close', function () {
-      remoteClose = true
-      t.ok(localClose, 'local closed')
-      t.ok(remoteClose, 'remote closed')
-      t.end()
-    })
-  })
-
-  var channel = p1.channel(key)
-
-  channel.on('close', function () {
-    localClose = true
-  })
-
-  channel.on('handshake', function () {
-    channel.close()
-  })
-
-  channel.handshake()
-
-  p1.pipe(p2).pipe(p1)
+  setTimeout(function () {
+    stream1.finalize()
+  }, 100)
 })
 
 tape('times out', function (t) {
@@ -262,24 +248,6 @@ tape('different timeouts', function (t) {
   p1.pipe(p2).pipe(p1)
 })
 
-tape('leave channels on close', function (t) {
-  t.plan(2)
-
-  var p1 = protocol()
-  var c1 = p1.channel(key)
-  var c2 = p1.channel(otherKey)
-
-  c1.once('close', function () {
-    t.pass('first channel closed')
-  })
-
-  c2.once('close', function () {
-    t.pass('second channel closed')
-  })
-
-  p1.destroy()
-})
-
 tape('extension', function (t) {
   t.plan(4)
 
@@ -287,11 +255,8 @@ tape('extension', function (t) {
   var p1 = protocol1()
   var p2 = protocol1()
 
-  var ch1 = p1.channel(key)
-  var ch2 = p2.channel(key)
-
-  ch1.handshake()
-  ch2.handshake()
+  var ch1 = p1.open(key)
+  var ch2 = p2.open(key)
 
   p1.once('handshake', function () {
     t.ok(p1.remoteSupports('test'), 'protocol supported')
@@ -320,16 +285,13 @@ tape('extension', function (t) {
 tape('different extensions', function (t) {
   t.plan(8)
 
-  var protocol1 = protocol.use(['test', 'bar'])
-  var protocol2 = protocol.use(['foo', 'test'])
+  var protocol1 = protocol.use({test: 1, bar: 1})
+  var protocol2 = protocol.use({foo: 1, test: 1})
   var p1 = protocol1()
   var p2 = protocol2()
 
-  var ch1 = p1.channel(key)
-  var ch2 = p2.channel(key)
-
-  ch1.handshake()
-  ch2.handshake()
+  var ch1 = p1.open(key)
+  var ch2 = p2.open(key)
 
   p1.once('handshake', function () {
     t.ok(!p1.remoteSupports('foo'), 'protocol not supported')
@@ -362,15 +324,12 @@ tape('different extensions', function (t) {
 tape('ignore unsupported message', function (t) {
   t.plan(6)
 
-  var protocol2 = protocol.use(['test', 'bar'])
+  var protocol2 = protocol.use({test: 1, bar: 1})
   var p1 = protocol()
   var p2 = protocol2()
 
-  var ch1 = p1.channel(key)
-  var ch2 = p2.channel(key)
-
-  ch1.handshake()
-  ch2.handshake()
+  var ch1 = p1.open(key)
+  var ch2 = p2.open(key)
 
   p1.once('handshake', function () {
     t.ok(!p1.remoteSupports('foo'), 'protocol not supported')
