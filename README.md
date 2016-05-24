@@ -37,8 +37,8 @@ If the remote peer joins a channel you haven't opened, hypercore will call an op
 method if you specify it with the discovery key for that channel.
 
 ``` js
-var p = protocol(function (publicId) {
-  // remote peer joined publicId but you haven't
+var p = protocol(function (discoveryKey) {
+  // remote peer joined discoveryKey but you haven't
   // you can open the channel now if you want to join the channel
 
   // open with corresponding key to join
@@ -157,7 +157,7 @@ var channel = p.open(someKey)
 
 channel.on('handshake', function () {
   channel.on('ping', function (message) {
-    console.log('received ping message')
+    console.log('received ping message', message)
   })
 
   channel.ping(Buffer('this is a ping message!'))
