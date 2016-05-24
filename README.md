@@ -16,18 +16,11 @@ var protocol = require('hypercore-protocol')
 var p = protocol()
 
 // open a channel specified by a 32 byte key
-var channel = p.channel(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
+var channel = p.open(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
 
-// send a handshake
-channel.handshake()
-
-channel.on('handshake', function () {
-  // request block 42
-  channel.request({block: 42})
-})
-
-channel.on('response', function (message) {
-  console.log(message) // contains message.block and message.data
+channel.request({block: 42})
+channel.on('data', function (message) {
+  console.log(message) // contains message.block and message.value
 })
 
 stream.pipe(anotherStream).pipe(stream)
@@ -41,7 +34,7 @@ Create a new protocol instance. The returned object is a duplex stream
 that you should pipe to another protocol instance over a stream based transport
 
 If the remote peer joins a channel you haven't opened, hypercore will call an optional `onopen`
-method if you specify it with the public id for that channel.
+method if you specify it with the discovery key for that channel.
 
 ``` js
 var p = protocol(function (publicId) {
@@ -49,11 +42,11 @@ var p = protocol(function (publicId) {
   // you can open the channel now if you want to join the channel
 
   // open with corresponding key to join
-  var channel = p.channel(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
+  var channel = p.open(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
 })
 ```
 
-See below for more information about channels, keys, and public ids.
+See below for more information about channels, keys, and discovery keys.
 Other options include:
 
 ``` js
@@ -66,43 +59,27 @@ Other options include:
 If you don't specify a peer id a random 32 byte will be used.
 You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
 
-#### `var channel = p.channel(key, [publicId])`
+#### `var channel = p.open(key, [options])`
 
-Open a stream channel. A channel uses the [sodium](https://github.com/mafintosh/sodium-prebuilt) module to encrypt all messages using the key you specify. The public id for the channel is send unencrypted together with a random 24 byte nonce. If you do not specify a public id, an HMAC of the string `hypercore` using the key as the password will be used.
+Open a stream channel. A channel uses the [sodium](https://github.com/mafintosh/sodium-prebuilt) module to encrypt all messages using the key you specify. The discovery key for the channel is send unencrypted together with a random 24 byte nonce. If you do not specify a discovery key in the options map, an HMAC of the string `hypercore` using the key as the password will be used.
 
 #### `p.on('handshake')`
 
 Emitted when a protocol handshake has been received. Afterwards you can check `.remoteId` to get the remote peer id.
 
-#### `var keys = p.keys()`
-
-Lists the keys of all the channels you have opened
-
 #### `p.setTimeout(ms, [ontimeout])`
 
-Will call the timeout function if the remote peer
-hasn't send any messages within `ms`. Will also send a heartbeat
-message to the other peer if you've been inactive for `ms / 2`
+Will call the timeout function if the remote peer hasn't send any messages within `ms`. Will also send a heartbeat message to the other peer if you've been inactive for `ms / 2`
 
 ## Channel API
 
-#### `channel.handshake(message)`
+#### `channel.end()`
 
-This should be the first message you send. The `peerId` and `extensions` field
-will be automatically populated for you. See the protobuf schema or more information.
+Ends a channel
 
-#### `channel.on('handshake', message)`
+#### `channel.on('end')`
 
-Emitted when the other peer sends a handshake. You should wait for this event
-to be emitted before sending any messages.
-
-#### `channel.close()`
-
-Closes a channel
-
-#### `channel.on('close')`
-
-Emitted when a channel is closed, either by you or the remote peer.
+Emitted when a channel is ended, either by you or the remote peer.
 No other events will be emitted after this.
 
 #### `channel.request(message)`
@@ -113,13 +90,13 @@ Send a request message. See the protobuf schema or more information
 
 Emitted when a request message is received
 
-#### `channel.response(message)`
+#### `channel.data(message)`
 
-Send a response message. See the protobuf schema or more information
+Send a data message. See the protobuf schema or more information
 
-#### `channel.on('response', message)`
+#### `channel.on('data', message)`
 
-Emitted when a response message is received
+Emitted when a data message is received
 
 #### `channel.cancel(message)`
 
@@ -136,6 +113,14 @@ Send a have message. See the protobuf schema or more information
 #### `channel.on('have', message)`
 
 Emitted when a have message is received
+
+#### `channel.want(message)`
+
+Send a want message. See the protobuf schema or more information
+
+#### `channel.on('want', message)`
+
+Emitted when a want message is received
 
 #### `channel.resume()`
 
@@ -158,18 +143,17 @@ to see wheather or not the remote is pausing us or we are pausing the remote.
 
 ## Extension API
 
-#### `protocol = protocol.use(extension)`
+#### `protocol = protocol.use(extensionName)`
 
 Use an extension specified by the string name you pass in. Returns a new prototype
 
-Will create a new method on all your channel objects that has the same name as the extension
-and emit an event with the same name when an extension message is received
+Will create a new method on all your channel objects that has the same name as the extension and emit an event with the same name when an extension message is received
 
 ``` js
 protocol = protocol.use('ping')
 
 var p = protocol()
-var channel = p.channel(someKey)
+var channel = p.open(someKey)
 
 channel.on('handshake', function () {
   channel.on('ping', function (message) {
@@ -180,7 +164,15 @@ channel.on('handshake', function () {
 })
 ```
 
-#### `var bool = p.remoteSupports(extension)`
+Per default all messages are buffers. If you want to encode/decode your messages you can specify an [abstract-encoding](https://github.com/mafintosh/abstract-encoding) compliant encoder as well
+
+``` js
+protocol = protocol.use({
+  ping: someEncoder
+})
+```
+
+#### `var bool = p.remoteSupports(extensionName)`
 
 After the protocol instance emits `handshake` you can call this method to check
 if the remote peer also supports one of your extensions.
