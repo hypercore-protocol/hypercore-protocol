@@ -111,12 +111,18 @@ function use (extensions) {
     this.protocol._close(this)
   }
 
+  Channel.prototype.destroy = function (err) {
+    this.protocol.destroy(err)
+  }
+
   Channel.prototype._onhandshake = function (handshake) {
     this.protocol._onhandshake(handshake)
   }
 
   extensionNames.forEach(function (name, type) {
-    if (Channel.prototype[name] || name === 'error') throw new Error('Invalid extension name')
+    if (Channel.prototype[name] || name === 'error' || name === 'tick') {
+      throw new Error('Invalid extension name')
+    }
 
     var enc = isEncoder(extensions[name]) ? extensions[name] : pe
 
@@ -178,6 +184,7 @@ function use (extensions) {
     function onfinalize () {
       if (self._finalized) return
       self._finalized = true
+      self.destroyed = true // defined by duplexify
 
       clearInterval(this._interval)
 
@@ -204,7 +211,7 @@ function use (extensions) {
   }
 
   Protocol.prototype.setTimeout = function (ms, ontimeout) {
-    if (this._finalized) return
+    if (this.destroyed) return
     if (ontimeout) this.once('timeout', ontimeout)
 
     var self = this
@@ -239,7 +246,7 @@ function use (extensions) {
   }
 
   Protocol.prototype.open = function (key, opts) {
-    if (this._finalized) return null // already finalized
+    if (this.destroyed) return null // already finalized
     if (!opts) opts = {}
 
     var d = opts.discoveryKey || discoveryKey(key)
@@ -253,6 +260,8 @@ function use (extensions) {
     }
 
     if (ch.local > -1) return ch
+
+    if (opts.state) ch.state = opts.state
 
     ch.key = key
     ch.local = this._local.indexOf(null)
@@ -322,20 +331,25 @@ function use (extensions) {
 
   Protocol.prototype._parseSoon = function (channel) {
     var self = this
+
     this._pause()
     process.nextTick(drain)
 
     function drain () {
-      if (self._finalized || channel.closed) return
-      while (channel.buffer.length) self._parse(channel.buffer.shift())
-      if (!self._finalized) self._resume()
+      if (self.destroyed || channel.closed) return
+
+      var buffer = channel.buffer
+      channel.buffer = []
+
+      while (buffer.length) self._parse(buffer.shift())
+      if (!self.destroyed) self._resume()
     }
   }
 
   Protocol.prototype._parse = function (data) {
     this._remoteKeepAlive = 0
 
-    if (!data.length || this._finalized) return
+    if (!data.length || this.destroyed) return
 
     var remote = varint.decode(data, 0)
     var offset = varint.decode.bytes
@@ -346,6 +360,13 @@ function use (extensions) {
     if (!this._remote[remote]) this._onopen(remote, data, offset)
     else if (offset !== data.length) this._onmessage(remote, data, offset)
     else this._onclose(remote)
+  }
+
+  Protocol.prototype._tick = function () {
+    for (var i = 0; i < this._local.length; i++) {
+      var ch = this._local[i]
+      if (ch) ch.emit('tick')
+    }
   }
 
   Protocol.prototype._parseType = function (type) {
@@ -383,13 +404,13 @@ function use (extensions) {
     this._remote[remote] = ch
     this._open(ch)
 
-    if (!this._finalized && ch.local === -1) this.emit('open', ch.discoveryKey)
+    if (!this.destroyed && ch.local === -1) this.emit('open', ch.discoveryKey)
   }
 
   Protocol.prototype._onmessage = function (remote, data, offset) {
     var channel = this._remote[remote]
 
-    if (!channel.key) {
+    if (!channel.key || channel.buffer.length) {
       if (channel.buffer.length === 16) return this.destroy(new Error('Buffer overflow'))
       channel.buffer.push(data)
       return
@@ -432,7 +453,6 @@ function use (extensions) {
     this.remoteId = handshake.id
 
     var exts = handshake.extensions
-
     // extensions *must* be sorted
     var local = 0
     var remote = 0
@@ -464,7 +484,7 @@ function use (extensions) {
     if (channel.closed) return
     channel.closed = true
 
-    if (!this._finalized) this._sendRaw(channel, Buffer(0))
+    if (!this.destroyed) this._sendRaw(channel, Buffer(0))
 
     this._local[channel.local] = null
     channel.local = -1
