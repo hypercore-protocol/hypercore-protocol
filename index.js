@@ -3,7 +3,8 @@ var inherits = require('inherits')
 var duplexify = require('duplexify')
 var lpstream = require('length-prefixed-stream')
 var stream = require('readable-stream')
-var crypto = require('crypto')
+var randomBytes = require('randombytes')
+var createHmac = require('create-hmac')
 var encryption = require('sodium-encryption')
 var increment = require('increment-buffer')
 var equals = require('buffer-equals')
@@ -61,7 +62,7 @@ function use (extensions) {
     this.remote = -1
     this.buffer = []
 
-    this._nonce = crypto.randomBytes(24)
+    this._nonce = randomBytes(24)
     this._remoteNonce = null
 
     this._firstNonce = Buffer(24)
@@ -148,7 +149,7 @@ function use (extensions) {
     this.channels = {}
     this.private = opts.private !== false
 
-    this.id = opts.id || crypto.randomBytes(32)
+    this.id = opts.id || randomBytes(32)
     this.remoteId = null
 
     this._finalized = false
@@ -508,7 +509,7 @@ function use (extensions) {
   }
 
   function discoveryKey (key) {
-    return crypto.createHmac('sha256', key).update('hypercore').digest()
+    return createHmac('sha256', key).update('hypercore').digest()
   }
 
   function isEncoder (val) {
