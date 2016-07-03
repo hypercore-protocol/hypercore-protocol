@@ -285,6 +285,7 @@ function use (extensions) {
     }
 
     this.emit('channel', ch)
+    this._open(ch)
     if (ch.buffer.length) this._parseSoon(ch)
 
     return ch
