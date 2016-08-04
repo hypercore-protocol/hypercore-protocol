@@ -28,6 +28,10 @@ stream.pipe(anotherStream).pipe(stream)
 
 ## API
 
+#### `var k = protocol.parseDiscoveryKey(buf)`
+
+Parse the discovery key encoded in `buf` which is the first varint message taken from a hypercore feed stream.
+
 #### `var p = protocol([options], [onopen])`
 
 Create a new protocol instance. The returned object is a duplex stream
