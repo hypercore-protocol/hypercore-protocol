@@ -207,6 +207,11 @@ function use (extensions) {
     return use(xtend(ext, extensions))
   }
 
+  Protocol.parseDiscoveryKey = function (buf) {
+    if (buf[0] !== 0) throw Error('Invalid message')
+    return messages.Open.decode(buf, 1).feed
+  }
+
   Protocol.prototype.finalize = function () {
     this._encode.push(null)
   }

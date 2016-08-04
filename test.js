@@ -1,8 +1,20 @@
 var tape = require('tape')
 var protocol = require('./')
+var lpm = require('length-prefixed-message')
 
 var key = Buffer('12345678123456781234567812345678')
 var otherKey = Buffer('02345678123456781234567812345678')
+
+tape('parse discovery key', function (t) {
+  t.plan(1)
+
+  var stream = protocol()
+  var channel = stream.open(key)
+  lpm.read(stream, function (buf) {
+    var parsed = protocol.parseDiscoveryKey(buf)
+    t.deepEqual(parsed, channel.discoveryKey)
+  })
+})
 
 tape('open channel', function (t) {
   t.plan(3)
