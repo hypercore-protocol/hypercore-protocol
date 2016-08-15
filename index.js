@@ -64,6 +64,7 @@ function use (extensions) {
 
     this._nonce = randomBytes(24)
     this._remoteNonce = null
+    this._ready = false
 
     this._firstNonce = Buffer(24)
     this._nonce.copy(this._firstNonce)
@@ -293,6 +294,8 @@ function use (extensions) {
     this._open(ch)
     if (ch.buffer.length) this._parseSoon(ch)
 
+    ch._ready = true // to avoid premature events
+
     return ch
   }
 
@@ -418,7 +421,7 @@ function use (extensions) {
   Protocol.prototype._onmessage = function (remote, data, offset) {
     var channel = this._remote[remote]
 
-    if (!channel.key || channel.buffer.length) {
+    if (!channel.key || channel.buffer.length || !channel._ready) {
       if (channel.buffer.length === 16) return this.destroy(new Error('Buffer overflow'))
       channel.buffer.push(data)
       return
