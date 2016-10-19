@@ -116,8 +116,8 @@ tape('is encrypted', function (t) {
 })
 
 tape('can disable encryption', function (t) {
-  var stream1 = protocol({private: false})
-  var stream2 = protocol({private: false})
+  var stream1 = protocol({encrypt: false})
+  var stream2 = protocol({encrypt: false})
 
   var foundHello = false
   var channel1 = stream1.open(key)

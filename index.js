@@ -147,8 +147,10 @@ function use (extensions) {
     var self = this
     duplexify.call(this)
 
+    var encrypt = opts.private !== undefined ? opts.private : opts.encrypt
+
     this.channels = {}
-    this.private = opts.private !== false
+    this.private = encrypt !== false
 
     this.id = opts.id || randomBytes(32)
     this.remoteId = null
