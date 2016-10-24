@@ -23,7 +23,8 @@ var DEFAULT_TYPES = [
   messages.Data,
   messages.Cancel,
   null, // pause
-  null  // resume
+  null, // resume
+  null  // end
 ]
 
 var DEFAULT_EVENTS = [
@@ -34,7 +35,8 @@ var DEFAULT_EVENTS = [
   'data',
   'cancel',
   'pause',
-  'resume'
+  'resume',
+  'end'
 ]
 
 while (DEFAULT_EVENTS.length < 64) { // reserved
@@ -109,12 +111,12 @@ function use (extensions) {
     return this.protocol._send(this, 7, null)
   }
 
-  Channel.prototype.end = function () {
-    this.protocol._close(this)
+  Channel.prototype.end = function () { // graceful close
+    return this.protocol._send(this, 8, null)
   }
 
-  Channel.prototype.destroy = function (err) {
-    this.protocol.destroy(err)
+  Channel.prototype.close = function () { // non graceful close
+    this.protocol._close(this)
   }
 
   Channel.prototype._onhandshake = function (handshake) {
@@ -501,7 +503,7 @@ function use (extensions) {
 
     this._local[channel.local] = null
     channel.local = -1
-    channel.emit('end')
+    channel.emit('close')
   }
 
   Protocol.prototype._encrypt = function (channel, buf) {
