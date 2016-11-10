@@ -173,7 +173,7 @@ function use (extensions) {
     this._encode = stream.Readable()
     this._encode._read = noop
 
-    this._decode = lpstream.decode({allowEmpty: true, limit: 5 * 1024 * 1024})
+    this._decode = lpstream.decode({allowEmpty: true, limit: opts.limit || 8 * 1024 * 1024})
     this._decode.on('data', parse)
 
     this.setReadable(this._encode)
