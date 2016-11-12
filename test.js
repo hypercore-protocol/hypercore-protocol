@@ -5,10 +5,12 @@ var lpm = require('length-prefixed-message')
 var key = Buffer('12345678123456781234567812345678')
 var otherKey = Buffer('02345678123456781234567812345678')
 
+var DEBUG_MODE = process.env.DEBUG_MODE ? 'log' : false
+
 tape('parse discovery key', function (t) {
   t.plan(1)
 
-  var stream = protocol()
+  var stream = protocol({ debugMode: DEBUG_MODE })
   var channel = stream.open(key)
   lpm.read(stream, function (buf) {
     var parsed = protocol.parseDiscoveryKey(buf)
@@ -19,8 +21,8 @@ tape('parse discovery key', function (t) {
 tape('open channel', function (t) {
   t.plan(3)
 
-  var stream1 = protocol()
-  var stream2 = protocol()
+  var stream1 = protocol({ debugMode: DEBUG_MODE })
+  var stream2 = protocol({ debugMode: DEBUG_MODE })
 
   var channel1 = stream1.open(key)
   var channel2 = stream2.open(key)
@@ -45,8 +47,8 @@ tape('open channel', function (t) {
 tape('async open', function (t) {
   t.plan(3)
 
-  var stream1 = protocol()
-  var stream2 = protocol(function () {
+  var stream1 = protocol({ debugMode: DEBUG_MODE })
+  var stream2 = protocol({ debugMode: DEBUG_MODE }, function () {
     setTimeout(function () {
       var channel2 = stream2.open(key)
       channel2.once('request', function (message) {
@@ -73,8 +75,8 @@ tape('async open', function (t) {
 tape('empty messages work', function (t) {
   t.plan(2)
 
-  var stream1 = protocol()
-  var stream2 = protocol()
+  var stream1 = protocol({ debugMode: DEBUG_MODE })
+  var stream2 = protocol({ debugMode: DEBUG_MODE })
 
   var channel1 = stream1.open(key)
   var channel2 = stream2.open(key)
@@ -94,8 +96,8 @@ tape('empty messages work', function (t) {
 })
 
 tape('is encrypted', function (t) {
-  var stream1 = protocol()
-  var stream2 = protocol()
+  var stream1 = protocol({ debugMode: DEBUG_MODE })
+  var stream2 = protocol({ debugMode: DEBUG_MODE })
 
   var channel1 = stream1.open(key)
   var channel2 = stream2.open(key)
@@ -116,8 +118,8 @@ tape('is encrypted', function (t) {
 })
 
 tape('can disable encryption', function (t) {
-  var stream1 = protocol({encrypt: false})
-  var stream2 = protocol({encrypt: false})
+  var stream1 = protocol({debugMode: DEBUG_MODE, encrypt: false})
+  var stream2 = protocol({debugMode: DEBUG_MODE, encrypt: false})
 
   var foundHello = false
   var channel1 = stream1.open(key)
@@ -142,8 +144,8 @@ tape('can disable encryption', function (t) {
 tape('end channel', function (t) {
   t.plan(3)
 
-  var stream1 = protocol()
-  var stream2 = protocol()
+  var stream1 = protocol({ debugMode: DEBUG_MODE })
+  var stream2 = protocol({ debugMode: DEBUG_MODE })
 
   var c1 = stream1.open(key)
   var c2 = stream2.open(key)
@@ -171,8 +173,8 @@ tape('end channel', function (t) {
 tape('destroy ends all channels', function (t) {
   t.plan(3)
 
-  var stream1 = protocol()
-  var stream2 = protocol()
+  var stream1 = protocol({ debugMode: DEBUG_MODE })
+  var stream2 = protocol({ debugMode: DEBUG_MODE })
 
   var c1 = stream1.open(key)
   var other = stream1.open(otherKey)
@@ -198,8 +200,8 @@ tape('destroy ends all channels', function (t) {
 })
 
 tape('times out', function (t) {
-  var p1 = protocol()
-  var p2 = protocol()
+  var p1 = protocol({ debugMode: DEBUG_MODE })
+  var p2 = protocol({ debugMode: DEBUG_MODE })
 
   // dummy timeout to keep event loop running
   var timeout = setTimeout(function () {}, 100000)
@@ -216,8 +218,8 @@ tape('times out', function (t) {
 })
 
 tape('timeout is implicit keep alive', function (t) {
-  var p1 = protocol()
-  var p2 = protocol()
+  var p1 = protocol({ debugMode: DEBUG_MODE })
+  var p2 = protocol({ debugMode: DEBUG_MODE })
 
   // dummy timeout to keep event loop running
   setTimeout(function () {
@@ -239,8 +241,8 @@ tape('timeout is implicit keep alive', function (t) {
 })
 
 tape('different timeouts', function (t) {
-  var p1 = protocol()
-  var p2 = protocol()
+  var p1 = protocol({ debugMode: DEBUG_MODE })
+  var p2 = protocol({ debugMode: DEBUG_MODE })
 
   // dummy timeout to keep event loop running
   var timeout = setTimeout(function () {}, 100000)
@@ -299,8 +301,8 @@ tape('different extensions', function (t) {
 
   var protocol1 = protocol.use({test: 1, bar: 1})
   var protocol2 = protocol.use({foo: 1, test: 1})
-  var p1 = protocol1()
-  var p2 = protocol2()
+  var p1 = protocol1({ debugMode: DEBUG_MODE })
+  var p2 = protocol2({ debugMode: DEBUG_MODE })
 
   var ch1 = p1.open(key)
   var ch2 = p2.open(key)
@@ -337,8 +339,8 @@ tape('ignore unsupported message', function (t) {
   t.plan(6)
 
   var protocol2 = protocol.use({test: 1, bar: 1})
-  var p1 = protocol()
-  var p2 = protocol2()
+  var p1 = protocol({ debugMode: DEBUG_MODE })
+  var p2 = protocol2({ debugMode: DEBUG_MODE })
 
   var ch1 = p1.open(key)
   var ch2 = p2.open(key)

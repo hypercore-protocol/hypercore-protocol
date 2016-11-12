@@ -56,12 +56,26 @@ Other options include:
 ``` js
 {
   id: optionalPeerId, // you can use this to detect if you connect to yourself
-  encrypt: true // set to false to disable encryption for debugging purposes
+  encrypt: true, // set to false to disable encryption for debugging purposes
+  debugMode: true // add 'debug' event emits to log internal state and actions
 }
 ```
 
 If you don't specify a peer id a random 32 byte will be used.
 You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
+
+If `debugMode` is true, a 'debug' event will emit with the following signature:
+
+``` js
+p.on('debug', function (instanceId, label, extraData) {
+  // instanceId == a debug ID assigned to this instance, to help track which protocol instance is emitting
+  // label == a label of the event to occur
+  // extraData == relevant parameters
+})
+```
+
+If `debugMode` is set to 'log', a listened will be attached to output the events to console.log.
+You can run the tests with the debugMode logger enabled by setting the `DEBUG_MODE` env var to 1.
 
 #### `var channel = p.open(key, [options])`
 
