@@ -11,6 +11,7 @@ var equals = require('buffer-equals')
 var varint = require('varint')
 var xtend = require('xtend')
 var pe = require('passthrough-encoding')
+var debug = require('debug')('hypercore-protocol')
 var messages = require('./messages')
 
 var KEEP_ALIVE = Buffer([0])
@@ -118,6 +119,7 @@ function use (extensions) {
   }
 
   Channel.prototype._onhandshake = function (handshake) {
+    niceDebug('handshaked', { channel: this })
     this.protocol._onhandshake(handshake)
   }
 
@@ -194,6 +196,7 @@ function use (extensions) {
 
       var keys = Object.keys(self.channels)
       for (var i = 0; i < keys.length; i++) {
+        niceDebug('closed', { channel: self.channels[keys[i]] })
         self._close(self.channels[keys[i]])
       }
     }
@@ -256,7 +259,10 @@ function use (extensions) {
   }
 
   Protocol.prototype.open = function (key, opts) {
-    if (this.destroyed) return null // already finalized
+    if (this.destroyed) {
+      niceDebug('Open() called after finalized, aborting', { key: key })
+      return null // already finalized
+    }
     if (!opts) opts = {}
 
     var d = opts.discoveryKey || discoveryKey(key)
@@ -277,6 +283,7 @@ function use (extensions) {
     ch.local = this._local.indexOf(null)
     if (ch.local === -1) ch.local = this._local.push(null) - 1
     this._local[ch.local] = ch
+    niceDebug('open()', { channel: ch })
 
     var open = messages.Open.encode({
       feed: ch.discoveryKey,
@@ -302,7 +309,11 @@ function use (extensions) {
   }
 
   Protocol.prototype._send = function (channel, type, message) {
-    if (channel.closed) return false
+    if (channel.closed) {
+      niceDebug('Send called after close, discarding', { channel: channel, type: type, message: message })
+      return false
+    }
+    niceDebug('send()', { channel: channel, type: type, message: message })
 
     var enc = types[type]
     var len = enc ? enc.encodingLength(message) : 0
@@ -335,10 +346,12 @@ function use (extensions) {
   }
 
   Protocol.prototype._pause = function () {
+    debug('pause()')
     if (!this._paused++) this._decode.pause()
   }
 
   Protocol.prototype._resume = function () {
+    debug('resume()')
     if (!--this._paused) this._decode.resume()
   }
 
@@ -362,7 +375,11 @@ function use (extensions) {
   Protocol.prototype._parse = function (data) {
     this._remoteKeepAlive = 0
 
-    if (!data.length || this.destroyed) return
+    if (!data.length) return
+    if (this.destroyed) {
+      debug('Received message after destroy(), discarding')
+      return
+    }
 
     var remote = varint.decode(data, 0)
     var offset = varint.decode.bytes
@@ -410,7 +427,11 @@ function use (extensions) {
       this.channels[keyHex] = ch
     }
 
-    if (ch.remote > -1) return this.destroy(new Error('Double open for same channel'))
+    if (ch.remote > -1) {
+      debug('Double open error, closing channel', { channel: ch, message: open })
+      return this.destroy(new Error('Double open for same channel'))
+    }
+    niceDebug('opened', { channel: ch, message: open })
 
     ch.remote = remote
     ch._remoteNonce = open.nonce
@@ -424,19 +445,34 @@ function use (extensions) {
     var channel = this._remote[remote]
 
     if (!channel.key || channel.buffer.length || !channel._ready) {
-      if (channel.buffer.length === 16) return this.destroy(new Error('Buffer overflow'))
+      if (channel.buffer.length === 16) {
+        niceDebug('Buffer overflow in received message, closing channel', { channel: channel })
+        return this.destroy(new Error('Buffer overflow'))
+      }
       channel.buffer.push(data)
       return
     }
 
     var box = this._decrypt(channel, data.slice(offset))
-    if (!box || !box.length) return this.destroy(new Error('Invalid message'))
+    if (!box || !box.length) {
+      niceDebug('Received invalid message, closing channel', { channel: channel })
+      return this.destroy(new Error('Invalid message'))
+    }
 
     var type = this._parseType(box[0])
-    if (type < 0) return
+    if (type < 0) {
+      niceDebug('Received invalid message type, discarding', { channel: channel, type: type })
+      return
+    }
 
-    if (type && !this.remoteId) return this.destroy(new Error('Did not receive handshake'))
-    if (type >= types.length) return
+    if (type && !this.remoteId) {
+      niceDebug('Received message without handshake, destroying channel', { channel: channel })
+      return this.destroy(new Error('Did not receive handshake'))
+    }
+    if (type >= types.length) {
+      niceDebug('Received invalid message type, discarding', { channel: channel, type: type })
+      return
+    }
 
     var enc = types[type]
 
@@ -446,11 +482,13 @@ function use (extensions) {
       return this.destroy(err)
     }
 
+    niceDebug('recv()', { channel: channel, type: type, message: message })
     channel.emit(eventNames[type], message)
   }
 
   Protocol.prototype._onclose = function (remote) {
     var channel = this._remote[remote]
+    niceDebug('closed by remote', { channel: channel })
 
     this._remote[remote] = null
     channel.remote = -1
@@ -534,6 +572,29 @@ function use (extensions) {
   }
 
   function noop () {}
+
+  function niceDebug (label, data) {
+    if (!debug.enabled) return
+    if (data) {
+      var parts = []
+      if (data.channel) parts.push('chan=' + shortHex(data.channel.discoveryKey))
+      parts.push(label)
+      if ('type' in data) {
+        var type = (types[data.type] && types[data.type].name) ? types[data.type].name : data.type
+        if (type === 6) type = 'Pause'
+        if (type === 7) type = 'Resume'
+        parts.push('type=' + type)
+      }
+      if (data.key) parts.push('key=' + shortHex(data.key))
+      debug(parts.join(' '))
+    } else {
+      debug(label)
+    }
+  }
+  function shortHex (buf) {
+    buf = buf.toString('hex')
+    return buf.slice(0, 6) + '..' + buf.slice(-2)
+  }
 
   return Protocol
 }
