@@ -12,6 +12,7 @@ var varint = require('varint')
 var xtend = require('xtend')
 var pe = require('passthrough-encoding')
 var debug = require('debug')('hypercore-protocol')
+var prettyHash = require('pretty-hash')
 var messages = require('./messages')
 
 var KEEP_ALIVE = Buffer([0])
@@ -577,7 +578,7 @@ function use (extensions) {
     if (!debug.enabled) return
     if (data) {
       var parts = []
-      if (data.channel) parts.push('chan=' + shortHex(data.channel.discoveryKey))
+      if (data.channel) parts.push('chan=' + prettyHash(data.channel.discoveryKey))
       parts.push(label)
       if ('type' in data) {
         var type = (types[data.type] && types[data.type].name) ? types[data.type].name : data.type
@@ -585,15 +586,11 @@ function use (extensions) {
         if (type === 7) type = 'Resume'
         parts.push('type=' + type)
       }
-      if (data.key) parts.push('key=' + shortHex(data.key))
+      if (data.key) parts.push('key=' + prettyHash(data.key))
       debug(parts.join(' '))
     } else {
       debug(label)
     }
-  }
-  function shortHex (buf) {
-    buf = buf.toString('hex')
-    return buf.slice(0, 6) + '..' + buf.slice(-2)
   }
 
   return Protocol
