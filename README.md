@@ -79,11 +79,19 @@ Will call the timeout function if the remote peer hasn't send any messages withi
 
 #### `channel.end()`
 
-Ends a channel
+Signal the remote that you want to gracefully end the channel.
 
 #### `channel.on('end')`
 
-Emitted when a channel is ended, either by you or the remote peer.
+Emitted when an end signal is received.
+
+#### `channel.close()`
+
+Force closes a channel
+
+#### `channel.on('close')`
+
+Emitted when a channel is closed, either by you or the remote peer.
 No other events will be emitted after this.
 
 #### `channel.request(message)`

@@ -141,7 +141,7 @@ tape('can disable encryption', function (t) {
   channel2.data({block: 10, value: Buffer('hello world')})
 })
 
-tape('end channel', function (t) {
+tape('close channel', function (t) {
   t.plan(3)
 
   var stream1 = protocol({ debugMode: DEBUG_MODE })
@@ -154,23 +154,23 @@ tape('end channel', function (t) {
     t.pass('received request')
   })
 
-  c2.on('end', function () {
-    t.pass('channel ended')
+  c2.on('close', function () {
+    t.pass('channel closed')
   })
 
-  c1.on('end', function () {
-    t.pass('channel ended')
+  c1.on('close', function () {
+    t.pass('channel closed')
   })
 
   c1.on('open', function () {
     c1.request({block: 10})
-    c1.end()
+    c1.close()
   })
 
   stream1.pipe(stream2).pipe(stream1)
 })
 
-tape('destroy ends all channels', function (t) {
+tape('close all channels on stream end', function (t) {
   t.plan(3)
 
   var stream1 = protocol({ debugMode: DEBUG_MODE })
@@ -180,16 +180,16 @@ tape('destroy ends all channels', function (t) {
   var other = stream1.open(otherKey)
   var c2 = stream2.open(key)
 
-  other.on('end', function () {
-    t.pass('channel ended')
+  other.on('close', function () {
+    t.pass('channel closed')
   })
 
-  c1.on('end', function () {
-    t.pass('channel ended')
+  c1.on('close', function () {
+    t.pass('channel closed')
   })
 
-  c2.on('end', function () {
-    t.pass('channel ended')
+  c2.on('close', function () {
+    t.pass('channel closed')
   })
 
   stream1.pipe(stream2).pipe(stream1)
