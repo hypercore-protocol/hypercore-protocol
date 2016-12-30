@@ -187,6 +187,9 @@ function use (extensions) {
     this.on('close', onfinalize)
     this.on('end', onfinalize)
     this.on('finish', this.finalize)
+    this.on('error', function (err) {
+      debug('stream error', err)
+    })
 
     if (onopen) this.on('open', onopen)
 
@@ -388,7 +391,10 @@ function use (extensions) {
     var offset = varint.decode.bytes
 
     if (remote >= this._remote.length) this._remote.push(null)
-    if (remote > this._remote.length) return this.destroy(new Error('Unexpected channel number'))
+    if (remote > this._remote.length) {
+      debug('unexpected channel number, destroy()ing')
+      return this.destroy(new Error('Unexpected channel number'))
+    }
 
     if (!this._remote[remote]) this._onopen(remote, data, offset)
     else if (offset !== data.length) this._onmessage(remote, data, offset)
@@ -416,10 +422,14 @@ function use (extensions) {
     try {
       var open = messages.Open.decode(data, offset)
     } catch (err) {
+      debug('error decoding message, destroy()ing', err)
       return this.destroy(err)
     }
 
-    if (open.feed.length !== 32 || open.nonce.length !== 24) return this.destroy(new Error('Invalid open message'))
+    if (open.feed.length !== 32 || open.nonce.length !== 24) {
+      debug('invalid open message, destroy()ing')
+      return this.destroy(new Error('Invalid open message'))
+    }
 
     var keyHex = open.feed.toString('hex')
     var ch = this.channels[keyHex]
@@ -431,7 +441,7 @@ function use (extensions) {
     }
 
     if (ch.remote > -1) {
-      debug('Double open error, closing channel', { channel: ch, message: open })
+      niceDebug('Double open error, destroy()ing', { channel: ch, message: open })
       return this.destroy(new Error('Double open for same channel'))
     }
     niceDebug('opened', { channel: ch, message: open })
@@ -482,6 +492,7 @@ function use (extensions) {
     try {
       var message = enc ? enc.decode(box, 1) : null
     } catch (err) {
+      debug('failed to decode message, destroy()ing', err)
       return this.destroy(err)
     }
 
@@ -529,7 +540,10 @@ function use (extensions) {
 
   Protocol.prototype._open = function (channel) {
     if (channel.local === -1 || channel.remote === -1) return
-    if (equals(channel._remoteNonce, channel._firstNonce)) return this.destroy(new Error('Remote echoed nonce'))
+    if (equals(channel._remoteNonce, channel._firstNonce)) {
+      debug('remote echoed nonce, destroy()ing')
+      return this.destroy(new Error('Remote echoed nonce'))
+    }
     channel.opened = true
     channel.emit('open')
   }
