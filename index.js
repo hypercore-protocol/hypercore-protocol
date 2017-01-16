@@ -26,7 +26,9 @@ var DEFAULT_TYPES = [
   messages.Cancel,
   null, // pause
   null, // resume
-  null  // end
+  null,  // end
+  messages.Unhave,
+  messages.Unwant
 ]
 
 var DEFAULT_EVENTS = [
@@ -38,7 +40,9 @@ var DEFAULT_EVENTS = [
   'cancel',
   'pause',
   'resume',
-  'end'
+  'end',
+  'unhave',
+  'unwant'
 ]
 
 while (DEFAULT_EVENTS.length < 64) { // reserved
@@ -115,6 +119,14 @@ function use (extensions) {
 
   Channel.prototype.end = function () { // graceful close
     return this.protocol._send(this, 8, null)
+  }
+
+  Channel.prototype.unhave = function (message) {
+    return this.protocol._send(this, 9, null)
+  }
+
+  Channel.prototype.unwant = function (message) {
+    return this.protocol._send(this, 10, null)
   }
 
   Channel.prototype.close = function () { // non graceful close
