@@ -122,11 +122,11 @@ function use (extensions) {
   }
 
   Channel.prototype.unhave = function (message) {
-    return this.protocol._send(this, 9, null)
+    return this.protocol._send(this, 9, message)
   }
 
   Channel.prototype.unwant = function (message) {
-    return this.protocol._send(this, 10, null)
+    return this.protocol._send(this, 10, message)
   }
 
   Channel.prototype.close = function () { // non graceful close
