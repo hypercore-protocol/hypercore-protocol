@@ -189,6 +189,7 @@ function use (extensions) {
     this.on('finish', this.finalize)
     this.on('error', function (err) {
       debug('stream error', err)
+      if (self.listenerCount('error') === 1) throw err
     })
 
     if (onopen) this.on('open', onopen)
