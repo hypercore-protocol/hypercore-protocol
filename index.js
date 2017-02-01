@@ -7,6 +7,10 @@ var xtend = require('xtend')
 var sodium = require('sodium-native')
 var messages = require('./messages')
 
+// increment = function ( buf) {
+
+// }
+
 var DEFAULT_TYPES = [
   messages.Handshake,
   messages.Have,
@@ -259,7 +263,7 @@ function use (extensions) {
     var open = decode(messages.Open, data, 0)
 
     if (!open || open.discoveryKey.length !== 32 || open.nonce.length !== 24) {
-      this.stream.destroy(new Error('Invalid open message'))
+      this.destroy(new Error('Invalid open message'))
       return
     }
 
