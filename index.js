@@ -279,10 +279,10 @@ function use (extensions) {
     channel._onopenmaybe()
   }
 
-  Protocol.prototype.open = function (key) {
+  Protocol.prototype.open = function (key, disc) {
     if (this.destroyed) return null
 
-    var disc = discoveryKey(key)
+    if (!disc) disc = discoveryKey(key)
     var hex = disc.toString('hex')
     var channel = this.channels[hex] || new Channel(this)
 
