@@ -1,373 +1,348 @@
 var tape = require('tape')
+var choppa = require('choppa')
 var protocol = require('./')
-var lpm = require('length-prefixed-message')
 
-var key = Buffer('12345678123456781234567812345678')
-var otherKey = Buffer('02345678123456781234567812345678')
+var KEY = new Buffer('01234567890123456789012345678901')
+var OTHER_KEY = new Buffer('12345678901234567890123456789012')
 
-var DEBUG_MODE = process.env.DEBUG_MODE ? 'log' : false
+tape('basic', function (t) {
+  t.plan(2)
 
-tape('parse discovery key', function (t) {
-  t.plan(1)
+  var a = protocol()
+  var b = protocol()
 
-  var stream = protocol({ debugMode: DEBUG_MODE })
-  var channel = stream.open(key)
-  lpm.read(stream, function (buf) {
-    var parsed = protocol.parseDiscoveryKey(buf)
-    t.deepEqual(parsed, channel.discoveryKey)
+  a.feed(KEY)
+  b.feed(KEY)
+
+  a.once('handshake', function () {
+    t.pass('a got handshake')
   })
+
+  b.once('handshake', function () {
+    t.pass('b got handshake')
+  })
+
+  a.pipe(b).pipe(a)
 })
 
-tape('open channel', function (t) {
-  t.plan(3)
+tape('basic with handshake options', function (t) {
+  t.plan(8)
 
-  var stream1 = protocol({ debugMode: DEBUG_MODE })
-  var stream2 = protocol({ debugMode: DEBUG_MODE })
+  var a = protocol({id: new Buffer('a'), live: true})
+  var b = protocol({id: new Buffer('b'), live: false})
 
-  var channel1 = stream1.open(key)
-  var channel2 = stream2.open(key)
+  a.feed(KEY)
+  b.feed(KEY)
 
-  channel1.request({
-    block: 10
+  a.once('handshake', function () {
+    t.same(a.id, new Buffer('a'))
+    t.same(a.live, true)
+    t.same(a.remoteId, new Buffer('b'))
+    t.same(a.remoteLive, false)
   })
 
-  channel1.once('data', function (message) {
-    t.same(message.block, 10, 'same block')
-    t.same(message.value, Buffer('hello world'), 'same value')
+  b.once('handshake', function () {
+    t.same(b.id, new Buffer('b'))
+    t.same(b.live, false)
+    t.same(b.remoteId, new Buffer('a'))
+    t.same(b.remoteLive, true)
   })
 
-  channel2.once('request', function (message) {
-    t.same(message.block, 10, 'same block')
-    channel2.data({block: 10, value: Buffer('hello world')})
-  })
-
-  stream1.pipe(stream2).pipe(stream1)
+  a.pipe(b).pipe(a)
 })
 
-tape('async open', function (t) {
-  t.plan(3)
+tape('send messages', function (t) {
+  t.plan(10)
 
-  var stream1 = protocol({ debugMode: DEBUG_MODE })
-  var stream2 = protocol({ debugMode: DEBUG_MODE }, function () {
+  var a = protocol()
+  var b = protocol()
+
+  var ch1 = a.feed(KEY)
+  var ch2 = b.feed(KEY)
+
+  b.on('feed', function (discoveryKey) {
+    t.same(discoveryKey, ch1.discoveryKey)
+  })
+
+  a.on('feed', function (discoveryKey) {
+    t.same(discoveryKey, ch2.discoveryKey)
+  })
+
+  ch2.on('data', function (data) {
+    t.same(data, {index: 42, signature: null, value: new Buffer('hi'), nodes: []})
+  })
+
+  ch1.data({index: 42, value: new Buffer('hi')})
+
+  ch2.on('request', function (request) {
+    t.same(request, {index: 10, hash: false, bytes: 0, nodes: 0})
+  })
+
+  ch1.request({index: 10})
+
+  ch2.on('cancel', function (cancel) {
+    t.same(cancel, {index: 100, hash: false, bytes: 0})
+  })
+
+  ch1.cancel({index: 100})
+
+  ch1.on('want', function (want) {
+    t.same(want, {start: 10, length: 100})
+  })
+
+  ch2.want({start: 10, length: 100})
+
+  ch1.on('info', function (info) {
+    t.same(info, {uploading: false, downloading: true})
+  })
+
+  ch2.info({uploading: false, downloading: true})
+
+  ch1.on('unwant', function (unwant) {
+    t.same(unwant, {start: 11, length: 100})
+  })
+
+  ch2.unwant({start: 11, length: 100})
+
+  ch1.on('unhave', function (unhave) {
+    t.same(unhave, {start: 18, length: 100})
+  })
+
+  ch2.unhave({start: 18, length: 100})
+
+  ch1.on('have', function (have) {
+    t.same(have, {start: 10, length: 10, bitfield: null})
+  })
+
+  ch2.have({start: 10, length: 10})
+
+  a.pipe(b).pipe(a)
+})
+
+tape('send messages (chunked)', function (t) {
+  t.plan(10)
+
+  var a = protocol()
+  var b = protocol()
+
+  var ch1 = a.feed(KEY)
+  var ch2 = b.feed(KEY)
+
+  b.on('feed', function (discoveryKey) {
+    t.same(discoveryKey, ch1.discoveryKey)
+  })
+
+  a.on('feed', function (discoveryKey) {
+    t.same(discoveryKey, ch2.discoveryKey)
+  })
+
+  ch2.on('data', function (data) {
+    t.same(data, {index: 42, signature: null, value: new Buffer('hi'), nodes: []})
+  })
+
+  ch1.data({index: 42, value: new Buffer('hi')})
+
+  ch2.on('request', function (request) {
+    t.same(request, {index: 10, hash: false, bytes: 0, nodes: 0})
+  })
+
+  ch1.request({index: 10})
+
+  ch2.on('cancel', function (cancel) {
+    t.same(cancel, {index: 100, hash: false, bytes: 0})
+  })
+
+  ch1.cancel({index: 100})
+
+  ch1.on('want', function (want) {
+    t.same(want, {start: 10, length: 100})
+  })
+
+  ch2.want({start: 10, length: 100})
+
+  ch1.on('info', function (info) {
+    t.same(info, {uploading: false, downloading: true})
+  })
+
+  ch2.info({uploading: false, downloading: true})
+
+  ch1.on('unwant', function (unwant) {
+    t.same(unwant, {start: 11, length: 100})
+  })
+
+  ch2.unwant({start: 11, length: 100})
+
+  ch1.on('unhave', function (unhave) {
+    t.same(unhave, {start: 18, length: 100})
+  })
+
+  ch2.unhave({start: 18, length: 100})
+
+  ch1.on('have', function (have) {
+    t.same(have, {start: 10, length: 10, bitfield: null})
+  })
+
+  ch2.have({start: 10, length: 10})
+
+  a.pipe(choppa()).pipe(b).pipe(choppa()).pipe(a)
+})
+
+tape('destroy', function (t) {
+  var a = protocol()
+  var ch1 = a.feed(KEY)
+
+  ch1.on('close', function () {
+    t.pass('closed')
+    t.end()
+  })
+
+  a.destroy()
+})
+
+tape('first feed should be the same', function (t) {
+  t.plan(2)
+
+  var a = protocol()
+  var b = protocol()
+
+  a.feed(KEY)
+  b.feed(OTHER_KEY)
+
+  a.once('error', function () {
+    t.pass('a should error')
+  })
+
+  b.once('error', function () {
+    t.pass('b should error')
+  })
+
+  a.pipe(b).pipe(a)
+})
+
+tape('multiple feeds', function (t) {
+  var a = protocol()
+  var b = protocol()
+
+  a.feed(KEY)
+  b.feed(KEY)
+
+  var ch1 = a.feed(OTHER_KEY)
+  var ch2 = b.feed(OTHER_KEY)
+
+  ch1.have({
+    start: 10,
+    length: 100
+  })
+
+  ch2.on('have', function () {
+    t.pass('got message on second channel')
+    t.end()
+  })
+
+  a.pipe(b).pipe(a)
+})
+
+tape('async feed', function (t) {
+  var a = protocol()
+  var b = protocol()
+
+  var ch1 = a.feed(KEY)
+
+  ch1.request({index: 42})
+
+  b.once('feed', function () {
     setTimeout(function () {
-      var channel2 = stream2.open(key)
-      channel2.once('request', function (message) {
-        t.same(message.block, 10, 'same block')
-        channel2.data({block: 10, value: Buffer('hello world')})
+      var ch2 = b.feed(KEY)
+      ch2.on('request', function (request) {
+        t.same(request.index, 42)
+        t.end()
       })
     }, 100)
   })
 
-  var channel1 = stream1.open(key)
-
-  channel1.request({
-    block: 10
-  })
-
-  channel1.once('data', function (message) {
-    t.same(message.block, 10, 'same block')
-    t.same(message.value, Buffer('hello world'), 'same value')
-  })
-
-  stream1.pipe(stream2).pipe(stream1)
+  a.pipe(b).pipe(a)
 })
 
-tape('empty messages work', function (t) {
-  t.plan(2)
+tape('stream is encrypted', function (t) {
+  var a = protocol()
+  var b = protocol()
 
-  var stream1 = protocol({ debugMode: DEBUG_MODE })
-  var stream2 = protocol({ debugMode: DEBUG_MODE })
+  var ch1 = a.feed(KEY)
+  var ch2 = b.feed(KEY)
 
-  var channel1 = stream1.open(key)
-  var channel2 = stream2.open(key)
-
-  channel1.pause()
-
-  channel1.once('resume', function (message) {
-    t.pass('resumed')
-  })
-
-  channel2.once('pause', function (message) {
-    t.pass('paused')
-    channel2.resume()
-  })
-
-  stream1.pipe(stream2).pipe(stream1)
-})
-
-tape('is encrypted', function (t) {
-  var stream1 = protocol({ debugMode: DEBUG_MODE })
-  var stream2 = protocol({ debugMode: DEBUG_MODE })
-
-  var channel1 = stream1.open(key)
-  var channel2 = stream2.open(key)
-
-  channel1.on('data', function (message) {
-    t.same(message.block, 10, 'same block')
-    t.same(message.value, Buffer('hello world'), 'same value')
+  ch2.on('data', function (data) {
+    t.same(data.value, new Buffer('i am secret'))
     t.end()
   })
 
-  stream2.on('data', function (data) {
-    t.ok(data.toString().indexOf('hello world') === -1, 'is encrypted')
+  a.on('data', function (data) {
+    t.ok(data.toString().indexOf('secret') === -1)
   })
 
-  stream1.pipe(stream2).pipe(stream1)
+  a.pipe(b).pipe(a)
 
-  channel2.data({block: 10, value: Buffer('hello world')})
+  ch1.data({index: 42, value: new Buffer('i am secret')})
 })
 
-tape('can disable encryption', function (t) {
-  var stream1 = protocol({debugMode: DEBUG_MODE, encrypt: false})
-  var stream2 = protocol({debugMode: DEBUG_MODE, encrypt: false})
+tape('stream can be unencrypted', function (t) {
+  var a = protocol({encrypt: false})
+  var b = protocol({encrypt: false})
 
-  var foundHello = false
-  var channel1 = stream1.open(key)
-  var channel2 = stream2.open(key)
+  var ch1 = a.feed(KEY)
+  var ch2 = b.feed(KEY)
+  var sawSecret = false
 
-  channel1.on('data', function (message) {
-    t.same(message.block, 10, 'same block')
-    t.same(message.value, Buffer('hello world'), 'same value')
-    t.ok(foundHello, 'sent in plain text')
+  ch2.on('data', function (data) {
+    t.ok(sawSecret, 'saw secret')
+    t.same(data.value, new Buffer('i am secret'))
     t.end()
   })
 
-  stream2.on('data', function (data) {
-    if (!foundHello) foundHello = data.toString().indexOf('hello world') > -1
+  a.on('data', function (data) {
+    if (data.toString().indexOf('secret') > -1) {
+      sawSecret = true
+    }
   })
 
-  stream1.pipe(stream2).pipe(stream1)
+  a.pipe(b).pipe(a)
 
-  channel2.data({block: 10, value: Buffer('hello world')})
+  ch1.data({index: 42, value: new Buffer('i am secret')})
 })
 
-tape('close channel', function (t) {
-  t.plan(3)
+tape('keep alives', function (t) {
+  var a = protocol({timeout: 100})
+  var b = protocol({timeout: 100})
 
-  var stream1 = protocol({ debugMode: DEBUG_MODE })
-  var stream2 = protocol({ debugMode: DEBUG_MODE })
+  a.feed(KEY)
+  b.feed(KEY)
 
-  var c1 = stream1.open(key)
-  var c2 = stream2.open(key)
+  var timeout = setTimeout(function () {
+    t.pass('should not time out')
+    t.end()
+  }, 1000)
 
-  c2.on('request', function () {
-    t.pass('received request')
-  })
-
-  c2.on('close', function () {
-    t.pass('channel closed')
-  })
-
-  c1.on('close', function () {
-    t.pass('channel closed')
-  })
-
-  c1.on('open', function () {
-    c1.request({block: 10})
-    c1.close()
-  })
-
-  stream1.pipe(stream2).pipe(stream1)
-})
-
-tape('close all channels on stream end', function (t) {
-  t.plan(3)
-
-  var stream1 = protocol({ debugMode: DEBUG_MODE })
-  var stream2 = protocol({ debugMode: DEBUG_MODE })
-
-  var c1 = stream1.open(key)
-  var other = stream1.open(otherKey)
-  var c2 = stream2.open(key)
-
-  other.on('close', function () {
-    t.pass('channel closed')
-  })
-
-  c1.on('close', function () {
-    t.pass('channel closed')
-  })
-
-  c2.on('close', function () {
-    t.pass('channel closed')
-  })
-
-  stream1.pipe(stream2).pipe(stream1)
-
-  setTimeout(function () {
-    stream1.finalize()
-  }, 100)
-})
-
-tape('times out', function (t) {
-  var p1 = protocol({ debugMode: DEBUG_MODE })
-  var p2 = protocol({ debugMode: DEBUG_MODE })
-
-  // dummy timeout to keep event loop running
-  var timeout = setTimeout(function () {}, 100000)
-
-  p2.setTimeout(10, function () {
-    p1.destroy()
-    p2.destroy()
+  b.on('error', function () {
     clearTimeout(timeout)
-    t.pass('timeout')
+    t.fail('timed out')
     t.end()
   })
 
-  p1.pipe(p2).pipe(p1)
+  a.pipe(b).pipe(a)
 })
 
-tape('timeout is implicit keep alive', function (t) {
-  var p1 = protocol({ debugMode: DEBUG_MODE })
-  var p2 = protocol({ debugMode: DEBUG_MODE })
+tape('timeouts', function (t) {
+  var a = protocol({timeout: false})
+  var b = protocol({timeout: 100})
 
-  // dummy timeout to keep event loop running
-  setTimeout(function () {
-    p1.destroy()
-    p2.destroy()
-    t.pass('no timeouts')
-    t.end()
-  }, 500)
+  var timeout = setTimeout(function () {
+    t.fail('should time out')
+  }, 1000)
 
-  p1.setTimeout(100, function () {
-    t.fail('should not timeout')
-  })
-
-  p2.setTimeout(100, function () {
-    t.fail('should not timeout')
-  })
-
-  p1.pipe(p2).pipe(p1)
-})
-
-tape('different timeouts', function (t) {
-  var p1 = protocol({ debugMode: DEBUG_MODE })
-  var p2 = protocol({ debugMode: DEBUG_MODE })
-
-  // dummy timeout to keep event loop running
-  var timeout = setTimeout(function () {}, 100000)
-
-  p1.setTimeout(100, function () {
+  b.on('error', function () {
     clearTimeout(timeout)
-    p1.destroy()
-    p2.destroy()
-    t.pass('should timeout')
+    t.pass('timed out')
     t.end()
   })
 
-  p2.setTimeout(5000, function () {
-    t.fail('should not timeout')
-  })
-
-  p1.pipe(p2).pipe(p1)
-})
-
-tape('extension', function (t) {
-  t.plan(4)
-
-  var protocol1 = protocol.use('test')
-  var p1 = protocol1()
-  var p2 = protocol1()
-
-  var ch1 = p1.open(key)
-  var ch2 = p2.open(key)
-
-  p1.once('handshake', function () {
-    t.ok(p1.remoteSupports('test'), 'protocol supported')
-  })
-
-  p2.once('handshake', function () {
-    t.ok(p2.remoteSupports('test'), 'protocol supported')
-  })
-
-  ch2.on('handshake', function () {
-    ch2.test(Buffer('hello world'))
-  })
-
-  ch1.once('test', function (buf) {
-    t.same(buf, Buffer('hello world'), 'same buffer')
-    ch1.test(Buffer('HELLO WORLD'))
-  })
-
-  ch2.once('test', function (buf) {
-    t.same(buf, Buffer('HELLO WORLD'), 'same buffer')
-  })
-
-  p1.pipe(p2).pipe(p1)
-})
-
-tape('different extensions', function (t) {
-  t.plan(8)
-
-  var protocol1 = protocol.use({test: 1, bar: 1})
-  var protocol2 = protocol.use({foo: 1, test: 1})
-  var p1 = protocol1({ debugMode: DEBUG_MODE })
-  var p2 = protocol2({ debugMode: DEBUG_MODE })
-
-  var ch1 = p1.open(key)
-  var ch2 = p2.open(key)
-
-  p1.once('handshake', function () {
-    t.ok(!p1.remoteSupports('foo'), 'protocol not supported')
-    t.ok(!p1.remoteSupports('bar'), 'protocol not supported')
-    t.ok(p1.remoteSupports('test'), 'protocol supported')
-  })
-
-  p2.once('handshake', function () {
-    t.ok(!p2.remoteSupports('foo'), 'protocol not supported')
-    t.ok(!p2.remoteSupports('bar'), 'protocol not supported')
-    t.ok(p2.remoteSupports('test'), 'protocol supported')
-  })
-
-  ch1.once('test', function (buf) {
-    t.same(buf, Buffer('hello world'), 'same buffer')
-    ch1.test(Buffer('HELLO WORLD'))
-  })
-
-  ch2.on('handshake', function () {
-    ch2.test(Buffer('hello world'))
-  })
-
-  ch2.once('test', function (buf) {
-    t.same(buf, Buffer('HELLO WORLD'), 'same buffer')
-  })
-
-  p1.pipe(p2).pipe(p1)
-})
-
-tape('ignore unsupported message', function (t) {
-  t.plan(6)
-
-  var protocol2 = protocol.use({test: 1, bar: 1})
-  var p1 = protocol({ debugMode: DEBUG_MODE })
-  var p2 = protocol2({ debugMode: DEBUG_MODE })
-
-  var ch1 = p1.open(key)
-  var ch2 = p2.open(key)
-
-  p1.once('handshake', function () {
-    t.ok(!p1.remoteSupports('foo'), 'protocol not supported')
-    t.ok(!p1.remoteSupports('bar'), 'protocol not supported')
-    t.ok(!p1.remoteSupports('test'), 'protocol not supported')
-  })
-
-  p2.once('handshake', function () {
-    t.ok(!p2.remoteSupports('foo'), 'protocol not supported')
-    t.ok(!p2.remoteSupports('bar'), 'protocol not supported')
-    t.ok(!p2.remoteSupports('test'), 'protocol not supported')
-  })
-
-  ch1.once('test', function () {
-    t.fail('ch1 does not support test')
-  })
-
-  ch2.on('handshake', function () {
-    ch2.test(Buffer('hello world'))
-  })
-
-  ch2.once('test', function (buf) {
-    t.fail('ch1 does not support test')
-  })
-
-  p1.pipe(p2).pipe(p1)
+  a.pipe(b).pipe(a)
 })

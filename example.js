@@ -1,40 +1,67 @@
-var protocol = require('./').use('ping')
+var protocol = require('./')
 
-var p1 = protocol({id: Buffer('mathias')})
+var a = protocol({id: 'a'})
+var b = protocol({id: 'b'})
 
-var p2 = protocol({id: Buffer('max')}, function (publicId) {
-  var channel = p2.channel(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
+a.pipe(b).pipe(a)
 
-  channel.on('close', function () {
-    console.log('remote: channel closed')
+var key = new Buffer('This is a 32 byte key, 012345678')
+var missing = 5
+
+var channel = a.open(key)
+var remoteChannel = b.open(key)
+
+a.on('end', function () {
+  console.log('peer a ended')
+})
+
+b.on('end', function () {
+  console.log('peer b ended')
+})
+
+channel.on('have', function (have) {
+  console.log('channel.onhave()', have)
+
+  for (var i = 0; i < 5; i++) {
+    channel.request({
+      index: i
+    })
+  }
+})
+
+channel.on('data', function (data) {
+  console.log('channel.ondata()', data)
+
+  if (!--missing) {
+    channel.info({
+      uploading: false,
+      download: false
+    })
+  }
+})
+
+remoteChannel.on('request', function (request) {
+  console.log('remoteChannel.onrequest()', request)
+  remoteChannel.data({
+    index: request.index,
+    value: 'sup'
   })
+})
 
-  channel.on('handshake', function () {
-    channel.ping()
+remoteChannel.on('want', function (want) {
+  console.log('remoteChannel.onwant()', want)
+  remoteChannel.have({
+    start: 0,
+    length: 1000
   })
-
-  channel.handshake()
 })
 
-p1.on('handshake', function () {
-  console.log('local: got handshake, remote peer:', p1.remoteId)
+remoteChannel.on('info', function (info) {
+  console.log('remoteChannel.oninfo', info)
+  b.finalize()
 })
 
-p2.on('handshake', function () {
-  console.log('remote: got handshake, local peer:', p2.remoteId)
+channel.want({
+  start: 0,
+  length: 1000
 })
-
-p1.pipe(p2).pipe(p1)
-
-var channel = p1.channel(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
-
-channel.on('ping', function () {
-  console.log('local: got ping, closing channel ...')
-  channel.close()
-})
-
-channel.on('close', function () {
-  console.log('local: channel closed')
-})
-
-channel.handshake()

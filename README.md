@@ -12,15 +12,14 @@ npm install hypercore-protocol
 
 ``` js
 var protocol = require('hypercore-protocol')
+var stream = protocol()
 
-var p = protocol()
+// open a feed specified by a 32 byte key
+var feed = stream.feed(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
 
-// open a channel specified by a 32 byte key
-var channel = p.open(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
-
-channel.request({block: 42})
-channel.on('data', function (message) {
-  console.log(message) // contains message.block and message.value
+feed.request({block: 42})
+feed.on('data', function (message) {
+  console.log(message) // contains message.index and message.value
 })
 
 stream.pipe(anotherStream).pipe(stream)
@@ -28,166 +27,149 @@ stream.pipe(anotherStream).pipe(stream)
 
 ## API
 
-#### `var k = protocol.parseDiscoveryKey(buf)`
+#### `var stream = protocol([options])`
 
-Parse the discovery key encoded in `buf` which is the first varint message taken from a hypercore feed stream.
+Create a new protocol duplex stream.
 
-#### `var p = protocol([options], [onopen])`
-
-Create a new protocol instance. The returned object is a duplex stream
-that you should pipe to another protocol instance over a stream based transport
-
-If the remote peer joins a channel you haven't opened, hypercore will call an optional `onopen`
-method if you specify it with the discovery key for that channel.
-
-``` js
-var p = protocol(function (discoveryKey) {
-  // remote peer joined discoveryKey but you haven't
-  // you can open the channel now if you want to join the channel
-
-  // open with corresponding key to join
-  var channel = p.open(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
-})
-```
-
-See below for more information about channels, keys, and discovery keys.
-Other options include:
+Options include:
 
 ``` js
 {
   id: optionalPeerId, // you can use this to detect if you connect to yourself
-  encrypt: true // set to false to disable encryption for debugging purposes
+  live: keepStreamOpen, // signal to the other peer that you want to keep this stream open forever
+  encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
+  timeout: 5000 // stream timeout. set to 0 or false to disable.
 }
 ```
 
 If you don't specify a peer id a random 32 byte will be used.
 You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
 
-#### `var channel = p.open(key, [options])`
+#### `var feed = stream.feed(key)`
 
-Open a stream channel. A channel uses the [sodium](https://github.com/mafintosh/sodium-prebuilt) module to encrypt all messages using the key you specify. The discovery key for the channel is send unencrypted together with a random 24 byte nonce. If you do not specify a discovery key in the options map, an HMAC of the string `hypercore` using the key as the password will be used.
+Signal the other end that you want to share a hypercore feed.
 
-#### `p.on('handshake')`
+You can use the same stream to share more than one BUT the first feed shared
+should be the same one. The key of the first feed is also used to encrypt the stream using [libsodium](https://github.com/mafintosh/sodium-native#crypto_stream_xorcipher-message-nonce-key).
 
-Emitted when a protocol handshake has been received. Afterwards you can check `.remoteId` to get the remote peer id.
+#### `stream.on('handshake')`
 
-#### `p.setTimeout(ms, [ontimeout])`
+Emitted when a protocol handshake has been received. Afterwards you can check `.remoteId` to get the remote peer id and `.remoteLive` to get their live status.
 
-Will call the timeout function if the remote peer hasn't send any messages within `ms`. Will also send a heartbeat message to the other peer if you've been inactive for `ms / 2`
+#### `stream.on('feed', discoveryKey)`
 
-## Channel API
+Emitted when a remote is sharing a feed. `discoveryKey` is the hypercore discovery key of the feed they want to share.
 
-#### `channel.end()`
+If you are sharing multiple hypercores on the same port you can use this event to wait for the remote peer to indicate which hypercore
+they are interested in.
 
-Signal the remote that you want to gracefully end the channel.
+#### `stream.destroy([error])`
 
-#### `channel.on('end')`
+Destroy the stream. Closes all feeds as well.
 
-Emitted when an end signal is received.
+#### `stream.finalize()`
 
-#### `channel.close()`
+Gracefully end the stream. Closes all feeds as well.
 
-Force closes a channel
+#### `feed.info(message)`
 
-#### `channel.on('close')`
+Send an `info` message. See the [schema.proto](schema.proto) file for more information.
 
-Emitted when a channel is closed, either by you or the remote peer.
-No other events will be emitted after this.
+#### `feed.on('info', message)
 
-#### `channel.request(message)`
+Emitted when an `info` message has been received.
 
-Send a request message. See the protobuf schema or more information
+#### `feed.have(message)`
 
-#### `channel.on('request', message)`
+Send a `have` message. See the [schema.proto](schema.proto) file for more information.
 
-Emitted when a request message is received
+#### `feed.on('have', message)`
 
-#### `channel.data(message)`
+Emitted when a `have` message has been received.
 
-Send a data message. See the protobuf schema or more information
+#### `feed.unhave(message)`
 
-#### `channel.on('data', message)`
+Send a `unhave` message. See the [schema.proto](schema.proto) file for more information.
 
-Emitted when a data message is received
+#### `feed.on('unhave', message)`
 
-#### `channel.cancel(message)`
+Emitted when a `unhave` message has been received.
 
-Send a cancel message. See the protobuf schema or more information
+#### `feed.want(want)`
 
-#### `channel.on('cancel', message)`
+Send a `want` message. See the [schema.proto](schema.proto) file for more information.
 
-Emitted when a cancel message is received
+#### `feed.on('want', want)
 
-#### `channel.have(message)`
+Emitted when a `want` message has been received.
 
-Send a have message. See the protobuf schema or more information
+#### `feed.unwant(unwant)`
 
-#### `channel.on('have', message)`
+Send a `unwant` message. See the [schema.proto](schema.proto) file for more information.
 
-Emitted when a have message is received
+#### `feed.on('unwant', unwant)
 
-#### `channel.want(message)`
+Emitted when a `unwant` message has been received.
 
-Send a want message. See the protobuf schema or more information
+#### `feed.request(request)`
 
-#### `channel.on('want', message)`
+Send a `request` message. See the [schema.proto](schema.proto) file for more information.
 
-Emitted when a want message is received
+#### `feed.on('request', request)
 
-#### `channel.resume()`
+Emitted when a `request` message has been received.
 
-Send a resume signal
+#### `feed.cancel(cancel)`
 
-#### `channel.on('resume')`
+Send a `cancel` message. See the [schema.proto](schema.proto) file for more information.
 
-Emitted when a resume signal is received
+#### `feed.on('cancel', cancel)
 
-#### `channel.pause()`
+Emitted when a `cancel` message has been received.
 
-Send a pause signal
+#### `feed.data(data)`
 
-#### `channel.on('pause')`
+Send a `data` message. See the [schema.proto](schema.proto) file for more information.
 
-Emitted when a pause signal is received
+#### `feed.on('data', data)
 
-You can always check the paused state by accessing `.remotePaused` and `.amPaused`
-to see wheather or not the remote is pausing us or we are pausing the remote.
+Emitted when a `data` message has been received.
 
-## Extension API
+#### `feed.on('close')`
 
-#### `protocol = protocol.use(extensionName)`
+Emitted when this feed has been closed. All feeds are automatically closed when the stream ends or is destroyed.
 
-Use an extension specified by the string name you pass in. Returns a new prototype
+#### `feed.close()`
 
-Will create a new method on all your channel objects that has the same name as the extension and emit an event with the same name when an extension message is received
+Close this feed. You only need to call this if you are sharing a lot of feeds and want to garbage collect some old unused ones.
 
-``` js
-protocol = protocol.use('ping')
+#### `feed.destroy(err)`
 
-var p = protocol()
-var channel = p.open(someKey)
+An alias to `stream.destroy`.
 
-channel.on('handshake', function () {
-  channel.on('ping', function (message) {
-    console.log('received ping message', message)
-  })
+## Wire protocol
 
-  channel.ping(Buffer('this is a ping message!'))
-})
+The hypercore protocol uses a basic varint length prefixed format to send messages over the wire.
+
+All messages contains a header indicating the type and feed id, and a protobuf encoded payload.
+
+```
+message: header + payload
 ```
 
-Per default all messages are buffers. If you want to encode/decode your messages you can specify an [abstract-encoding](https://github.com/mafintosh/abstract-encoding) compliant encoder as well
+A header is a varint that looks like this
 
-``` js
-protocol = protocol.use({
-  ping: someEncoder
-})
+```
+header = numeric-feed-id << 4 | numeric-type
 ```
 
-#### `var bool = p.remoteSupports(extensionName)`
+The feed id is just an incrementing number for every feed shared and the type corresponds to which protobuf schema should be used to decode the payload.
 
-After the protocol instance emits `handshake` you can call this method to check
-if the remote peer also supports one of your extensions.
+The message is then wrapped in another varint containing the length of the message
+
+```
+wire = length(message) + message + length(message2) + message2 + ...
+```
 
 ## License
 

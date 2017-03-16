@@ -1,32 +1,67 @@
-message Open {
-  required bytes feed = 1;
-  required bytes nonce = 2;
+// wire format is <len>(<header><message>)
+// header is a varint, channel << 4 | <4-bit-type>
+
+// type=0, should be the first message sent on a channel
+message Feed {
+  required bytes discoveryKey = 1;
+  optional bytes nonce = 2;
 }
 
+// type=1, overall connection handshake. should be send just after the feed message on the first channel only
 message Handshake {
-  required bytes id = 1;
-  repeated string extensions = 2;
+  optional bytes id = 1;
+  optional bool live = 2; // keep the connection open forever? both ends have to agree
 }
 
+// type=2, message indicating state changes etc.
+// initial state for uploading/downloading is true
+// if both ends are not downloading and not live it is safe to consider the stream ended
+message Info {
+  optional bool uploading = 1;
+  optional bool downloading = 2;
+}
+
+// type=3, what do we have?
 message Have {
   required uint64 start = 1;
-  optional uint64 end = 2;
+  optional uint64 length = 2 [default = 1]; // defaults to 1
   optional bytes bitfield = 3;
 }
 
-message Want {
+// type=4, what did we lose?
+message Unhave {
   required uint64 start = 1;
-  optional uint64 end = 2;
+  optional uint64 length = 2 [default = 1]; // defaults to 1
 }
 
-message Request {
-  required uint64 block = 1;
-  optional uint64 bytes = 2;
+// type=5, what do we want? remote should start sending have messages in this range
+message Want {
+  required uint64 start = 1;
+  optional uint64 length = 2; // defaults to Infinity or feed.length (if not live)
+}
 
+// type=6, what don't we want anymore?
+message Unwant {
+  required uint64 start = 1;
+  optional uint64 length = 2; // defaults to Infinity or feed.length (if not live)
+}
+
+// type=7, ask for data
+message Request {
+  required uint64 index = 1;
+  optional uint64 bytes = 2;
   optional bool hash = 3;
   optional uint64 nodes = 4;
 }
 
+// type=8, cancel a request
+message Cancel {
+  required uint64 index = 1;
+  optional uint64 bytes = 2;
+  optional bool hash = 3;
+}
+
+// type=9, get some data
 message Data {
   message Node {
     required uint64 index = 1;
@@ -34,24 +69,8 @@ message Data {
     required uint64 size = 3;
   }
 
-  required uint64 block = 1;
+  required uint64 index = 1;
   optional bytes value = 2;
   repeated Node nodes = 3;
   optional bytes signature = 4;
-}
-
-message Cancel {
-  required uint64 block = 1;
-  optional uint64 bytes = 2;
-  optional bool hash = 3;
-}
-
-message Unhave {
-  required uint64 start = 1;
-  optional uint64 end = 2;
-}
-
-message Unwant {
-  required uint64 start = 1;
-  optional uint64 end = 2;
 }
