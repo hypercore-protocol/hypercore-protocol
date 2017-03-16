@@ -75,7 +75,7 @@ Gracefully end the stream. Closes all feeds as well.
 
 Send an `info` message. See the [schema.proto](schema.proto) file for more information.
 
-#### `feed.on('info', message)
+#### `feed.on('info', message)`
 
 Emitted when an `info` message has been received.
 
@@ -99,7 +99,7 @@ Emitted when a `unhave` message has been received.
 
 Send a `want` message. See the [schema.proto](schema.proto) file for more information.
 
-#### `feed.on('want', want)
+#### `feed.on('want', want)`
 
 Emitted when a `want` message has been received.
 
@@ -107,7 +107,7 @@ Emitted when a `want` message has been received.
 
 Send a `unwant` message. See the [schema.proto](schema.proto) file for more information.
 
-#### `feed.on('unwant', unwant)
+#### `feed.on('unwant', unwant)`
 
 Emitted when a `unwant` message has been received.
 
@@ -115,7 +115,7 @@ Emitted when a `unwant` message has been received.
 
 Send a `request` message. See the [schema.proto](schema.proto) file for more information.
 
-#### `feed.on('request', request)
+#### `feed.on('request', request)`
 
 Emitted when a `request` message has been received.
 
@@ -123,7 +123,7 @@ Emitted when a `request` message has been received.
 
 Send a `cancel` message. See the [schema.proto](schema.proto) file for more information.
 
-#### `feed.on('cancel', cancel)
+#### `feed.on('cancel', cancel)`
 
 Emitted when a `cancel` message has been received.
 
@@ -131,7 +131,7 @@ Emitted when a `cancel` message has been received.
 
 Send a `data` message. See the [schema.proto](schema.proto) file for more information.
 
-#### `feed.on('data', data)
+#### `feed.on('data', data)`
 
 Emitted when a `data` message has been received.
 
