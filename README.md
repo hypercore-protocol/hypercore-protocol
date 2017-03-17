@@ -154,7 +154,7 @@ The hypercore protocol uses a basic varint length prefixed format to send messag
 All messages contains a header indicating the type and feed id, and a protobuf encoded payload.
 
 ```
-message: header + payload
+message = header + payload
 ```
 
 A header is a varint that looks like this
