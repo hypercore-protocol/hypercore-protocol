@@ -90,6 +90,7 @@ Protocol.prototype.feed = function (key, opts) {
   ch.headerLength = varint.encodingLength(ch.header)
   ch.key = key
   ch.discoveryKey = dk
+  if (opts.peer) ch.peer = opts.peer
 
   this.feeds.push(ch)
 
