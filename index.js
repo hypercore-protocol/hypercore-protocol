@@ -24,6 +24,7 @@ function Protocol (opts) {
   this.discoveryKey = null
   this.remoteDiscoveryKey = null
   this.feeds = []
+  this.expectedFeeds = opts.expectedFeeds || 0
 
   this._localFeeds = []
   this._remoteFeeds = []

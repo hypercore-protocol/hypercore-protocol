@@ -73,6 +73,11 @@ Feed.prototype.close = function () {
     this.stream.feeds.pop()
     this.stream._localFeeds[this.id] = null
     this.id = -1
+
+    if (this.stream.destroyed) return
+    if (this.stream.expectedFeeds <= 0 || --this.stream.expectedFeeds) return
+
+    this.stream.finalize()
   }
 }
 

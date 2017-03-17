@@ -346,3 +346,39 @@ tape('timeouts', function (t) {
 
   a.pipe(b).pipe(a)
 })
+
+tape('expected feeds', function (t) {
+  var a = protocol({expectedFeeds: 1})
+
+  a.resume()
+  a.on('end', function () {
+    t.pass('should end')
+    t.end()
+  })
+
+  var ch = a.feed(KEY)
+
+  ch.close()
+})
+
+tape('2 expected feeds', function (t) {
+  var a = protocol({expectedFeeds: 2})
+  var created = 0
+
+  a.resume()
+  a.on('end', function () {
+    t.same(created, 2, 'created two feeds')
+    t.pass('should end')
+    t.end()
+  })
+
+  created++
+  var ch = a.feed(KEY)
+  ch.close()
+
+  setTimeout(function () {
+    created++
+    var ch = a.feed(OTHER_KEY)
+    ch.close()
+  }, 100)
+})
