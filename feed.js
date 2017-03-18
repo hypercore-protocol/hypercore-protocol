@@ -105,6 +105,7 @@ Feed.prototype._resume = function () {
       var next = self._buffer.shift()
       self._emit(next.type, next.message)
     }
+    self._buffer = null
   }
 }
 
