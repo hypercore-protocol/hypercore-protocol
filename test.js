@@ -187,6 +187,85 @@ tape('send messages (chunked)', function (t) {
   a.pipe(choppa()).pipe(b).pipe(choppa()).pipe(a)
 })
 
+tape('send messages (concat)', function (t) {
+  t.plan(10)
+
+  var a = protocol()
+  var b = protocol()
+
+  var ch1 = a.feed(KEY)
+  var ch2 = b.feed(KEY)
+
+  b.on('feed', function (discoveryKey) {
+    t.same(discoveryKey, ch1.discoveryKey)
+  })
+
+  a.on('feed', function (discoveryKey) {
+    t.same(discoveryKey, ch2.discoveryKey)
+  })
+
+  ch2.on('data', function (data) {
+    t.same(data, {index: 42, signature: null, value: new Buffer('hi'), nodes: []})
+  })
+
+  ch1.data({index: 42, value: new Buffer('hi')})
+
+  ch2.on('request', function (request) {
+    t.same(request, {index: 10, hash: false, bytes: 0, nodes: 0})
+  })
+
+  ch1.request({index: 10})
+
+  ch2.on('cancel', function (cancel) {
+    t.same(cancel, {index: 100, hash: false, bytes: 0})
+  })
+
+  ch1.cancel({index: 100})
+
+  ch1.on('want', function (want) {
+    t.same(want, {start: 10, length: 100})
+  })
+
+  ch2.want({start: 10, length: 100})
+
+  ch1.on('info', function (info) {
+    t.same(info, {uploading: false, downloading: true})
+  })
+
+  ch2.info({uploading: false, downloading: true})
+
+  ch1.on('unwant', function (unwant) {
+    t.same(unwant, {start: 11, length: 100})
+  })
+
+  ch2.unwant({start: 11, length: 100})
+
+  ch1.on('unhave', function (unhave) {
+    t.same(unhave, {start: 18, length: 100})
+  })
+
+  ch2.unhave({start: 18, length: 100})
+
+  ch1.on('have', function (have) {
+    t.same(have, {start: 10, length: 10, bitfield: null})
+  })
+
+  ch2.have({start: 10, length: 10})
+
+  b.write(toBuffer(a))
+  a.write(toBuffer(b))
+  a.pipe(b).pipe(a)
+
+  function toBuffer (stream) {
+    var bufs = []
+    while (true) {
+      var next = stream.read()
+      if (!next) return Buffer.concat(bufs)
+      bufs.push(next)
+    }
+  }
+})
+
 tape('destroy', function (t) {
   var a = protocol()
   var ch1 = a.feed(KEY)

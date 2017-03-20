@@ -292,6 +292,8 @@ Protocol.prototype._onmessage = function (data, start, end) {
 }
 
 Protocol.prototype._parse = function (data, start, cb) {
+  var decrypted = !!this._remoteXor
+
   if (start) {
     data = data.slice(start)
     start = 0
@@ -308,6 +310,10 @@ Protocol.prototype._parse = function (data, start, cb) {
       this._start = start
       this._cb = cb
       return
+    }
+
+    if (!decrypted && this._remoteXor) {
+      return this._parse(data, start, cb)
     }
   }
 
