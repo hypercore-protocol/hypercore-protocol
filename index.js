@@ -362,6 +362,7 @@ Protocol.prototype._parseLength = function (data, start) {
 
     if (!(byte & 0x80)) {
       this._missing = varint.decode(this._length)
+      this._pointer = 0
       if (this._missing > 8388608) return this._tooBig(data.length)
       return start
     }
