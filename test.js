@@ -461,3 +461,23 @@ tape('2 expected feeds', function (t) {
     ch.close()
   }, 100)
 })
+
+tape('message after ping', function (t) {
+  t.plan(2)
+
+  var a = protocol()
+  var b = protocol()
+
+  var ch1 = a.feed(KEY)
+  var ch2 = b.feed(KEY)
+
+  ch2.on('have', function (have) {
+    t.pass('got have')
+  })
+
+  ch1.have({start: 1})
+  a.ping()
+  ch1.have({start: 2})
+
+  a.pipe(b).pipe(a)
+})
