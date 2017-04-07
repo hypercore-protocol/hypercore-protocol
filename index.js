@@ -1,7 +1,7 @@
 var stream = require('readable-stream')
 var inherits = require('inherits')
 var varint = require('varint')
-var sodium = require('sodium-native')
+var sodium = require('sodium-universal')
 var feed = require('./feed')
 var messages = require('./messages')
 
