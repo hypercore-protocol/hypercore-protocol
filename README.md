@@ -37,6 +37,7 @@ Options include:
 {
   id: optionalPeerId, // you can use this to detect if you connect to yourself
   live: keepStreamOpen, // signal to the other peer that you want to keep this stream open forever
+  userData: opaqueUserData // include user data that you can retrieve on handshake
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
   timeout: 5000 // stream timeout. set to 0 or false to disable.
 }
@@ -54,7 +55,7 @@ should be the same one. The key of the first feed is also used to encrypt the st
 
 #### `stream.on('handshake')`
 
-Emitted when a protocol handshake has been received. Afterwards you can check `.remoteId` to get the remote peer id and `.remoteLive` to get their live status.
+Emitted when a protocol handshake has been received. Afterwards you can check `.remoteId` to get the remote peer id, `.remoteLive` to get its live status, or `.remoteUserData` to get its user data.
 
 #### `stream.on('feed', discoveryKey)`
 
