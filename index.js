@@ -15,8 +15,10 @@ function Protocol (opts) {
 
   this.id = opts.id || randomBytes(32)
   this.live = !!opts.live
+  this.userData = opts.userData || null
   this.remoteId = null
   this.remoteLive = false
+  this.remoteUserData = null
 
   this.destroyed = false
   this.encrypted = opts.encrypt !== false
@@ -129,7 +131,7 @@ Protocol.prototype.feed = function (key, opts) {
   if (this.destroyed) return null
 
   if (first) {
-    ch.handshake({id: this.id, live: this.live})
+    ch.handshake({id: this.id, live: this.live, userData: this.userData})
   }
 
   if (ch._buffer.length) ch._resume()
@@ -235,6 +237,7 @@ Protocol.prototype._onhandshake = function (handshake) {
   if (this.remoteId) return
   this.remoteId = handshake.id || randomBytes(32)
   this.remoteLive = handshake.live
+  this.remoteUserData = handshake.userData
   this.emit('handshake')
 }
 

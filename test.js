@@ -26,9 +26,14 @@ tape('basic', function (t) {
 })
 
 tape('basic with handshake options', function (t) {
-  t.plan(8)
+  t.plan(12)
 
-  var a = protocol({id: new Buffer('a'), live: true})
+  var data = [
+    'eeaa62fbb11ba521cce58cf3fae42deb15d94a0436fc7fa0cbba8f130e7c0499',
+    '8c797667bf307d82c51a8308fe477b781a13708e0ec1f2cc7f497392574e2464'
+  ]
+
+  var a = protocol({id: new Buffer('a'), live: true, userData: new Buffer(data)})
   var b = protocol({id: new Buffer('b'), live: false})
 
   a.feed(KEY)
@@ -37,15 +42,19 @@ tape('basic with handshake options', function (t) {
   a.once('handshake', function () {
     t.same(a.id, new Buffer('a'))
     t.same(a.live, true)
+    t.same(a.userData, new Buffer(data))
     t.same(a.remoteId, new Buffer('b'))
     t.same(a.remoteLive, false)
+    t.same(a.remoteUserData, null)
   })
 
   b.once('handshake', function () {
     t.same(b.id, new Buffer('b'))
     t.same(b.live, false)
+    t.same(b.userData, null)
     t.same(b.remoteId, new Buffer('a'))
     t.same(b.remoteLive, true)
+    t.same(b.remoteUserData, new Buffer(data))
   })
 
   a.pipe(b).pipe(a)
