@@ -204,6 +204,8 @@ Protocol.prototype.finalize = function () {
 }
 
 Protocol.prototype._close = function () {
+  clearInterval(this._interval)
+
   var feeds = this.feeds
   this.feeds = []
   for (var i = 0; i < feeds.length; i++) feeds[i]._onclose()
