@@ -490,3 +490,50 @@ tape('message after ping', function (t) {
 
   a.pipe(b).pipe(a)
 })
+
+tape('extension message', function (t) {
+  t.plan(10)
+
+  var a = protocol({
+    extensions: ['a', 'b']
+  })
+
+  var b = protocol({
+    extensions: ['b', 'c']
+  })
+
+  var ch1 = a.feed(KEY)
+  var ch2 = b.feed(KEY)
+
+  ch2.on('extension', function (type, message) {
+    t.same(type, 'b')
+    t.same(message, new Buffer('hello ch2'))
+  })
+
+  ch1.on('extension', function (type, message) {
+    t.same(type, 'b')
+    t.same(message, new Buffer('hello ch1'))
+  })
+
+  a.once('handshake', function () {
+    t.same(a.remoteSupports('a'), false)
+    t.same(a.remoteSupports('b'), true)
+    t.same(a.remoteSupports('c'), false)
+
+    ch1.extension('a', new Buffer('nooo'))
+    ch1.extension('b', new Buffer('hello ch2'))
+    ch1.extension('c', new Buffer('nooo'))
+  })
+
+  b.once('handshake', function () {
+    t.same(b.remoteSupports('a'), false)
+    t.same(b.remoteSupports('b'), true)
+    t.same(b.remoteSupports('c'), false)
+
+    ch2.extension('a', new Buffer('nooo'))
+    ch2.extension('b', new Buffer('hello ch1'))
+    ch2.extension('c', new Buffer('nooo'))
+  })
+
+  a.pipe(b).pipe(a)
+})

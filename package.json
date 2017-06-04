@@ -9,6 +9,7 @@
     "protocol-buffers": "^3.2.1",
     "readable-stream": "^2.2.6",
     "sodium-universal": "^1.0.0",
+    "sorted-indexof": "^1.0.0",
     "varint": "^5.0.0"
   },
   "devDependencies": {

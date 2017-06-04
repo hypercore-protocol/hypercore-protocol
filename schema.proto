@@ -12,6 +12,7 @@ message Handshake {
   optional bytes id = 1;
   optional bool live = 2; // keep the connection open forever? both ends have to agree
   optional bytes userData = 3;
+  repeated string extensions = 4;
 }
 
 // type=2, message indicating state changes etc.
@@ -75,3 +76,6 @@ message Data {
   repeated Node nodes = 3;
   optional bytes signature = 4;
 }
+
+// type=15 (last massage) is an extension message
+// that is encoded like this <varint user-type><payload>

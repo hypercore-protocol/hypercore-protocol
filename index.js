@@ -2,6 +2,7 @@ var stream = require('readable-stream')
 var inherits = require('inherits')
 var varint = require('varint')
 var sodium = require('sodium-universal')
+var indexOf = require('sorted-indexof')
 var feed = require('./feed')
 var messages = require('./messages')
 
@@ -27,6 +28,8 @@ function Protocol (opts) {
   this.remoteDiscoveryKey = null
   this.feeds = []
   this.expectedFeeds = opts.expectedFeeds || 0
+  this.extensions = opts.extensions || []
+  this.remoteExtensions = null
 
   this._localFeeds = []
   this._remoteFeeds = []
@@ -81,7 +84,10 @@ Protocol.prototype.feed = function (key, opts) {
   var dk = opts.discoveryKey || discoveryKey(key)
   var ch = this._feed(dk)
 
-  if (ch.id > -1) return ch
+  if (ch.id > -1) {
+    if (opts.peer) ch.peer = opts.peer
+    return ch
+  }
 
   if (this._localFeeds.length >= 128) {
     this._tooManyFeeds()
@@ -131,7 +137,12 @@ Protocol.prototype.feed = function (key, opts) {
   if (this.destroyed) return null
 
   if (first) {
-    ch.handshake({id: this.id, live: this.live, userData: this.userData})
+    ch.handshake({
+      id: this.id,
+      live: this.live,
+      userData: this.userData,
+      extensions: this.extensions
+    })
   }
 
   if (ch._buffer.length) ch._resume()
@@ -235,11 +246,19 @@ Protocol.prototype._feed = function (dk) {
   return ch
 }
 
+Protocol.prototype.remoteSupports = function (name) {
+  var i = this.extensions.indexOf(name)
+  return i > -1 && !!this.remoteExtensions && this.remoteExtensions.indexOf(i) > -1
+}
+
 Protocol.prototype._onhandshake = function (handshake) {
   if (this.remoteId) return
+
   this.remoteId = handshake.id || randomBytes(32)
   this.remoteLive = handshake.live
   this.remoteUserData = handshake.userData
+  this.remoteExtensions = indexOf(this.extensions, handshake.extensions)
+
   this.emit('handshake')
 }
 
@@ -293,6 +312,7 @@ Protocol.prototype._onmessage = function (data, start, end) {
   }
 
   if (!ch) return this._badFeed()
+  if (type === 15) return ch._onextension(data, start, end)
   ch._onmessage(type, data, start, end)
 }
 

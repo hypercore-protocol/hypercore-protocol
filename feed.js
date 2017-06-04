@@ -61,6 +61,32 @@ Feed.prototype.data = function (message) {
   return this._send(9, messages.Data, message)
 }
 
+Feed.prototype.extension = function (type, message) {
+  var id = this.stream.extensions.indexOf(type)
+  if (id === -1) return false
+
+  var header = this.header | 15
+  var len = this.headerLength + varint.encodingLength(id) + message.length
+  var box = new Buffer(varint.encodingLength(len) + len)
+  var offset = 0
+
+  varint.encode(len, box, offset)
+  offset += varint.encode.bytes
+
+  varint.encode(header, box, offset)
+  offset += varint.encode.bytes
+
+  varint.encode(id, box, offset)
+  offset += varint.encode.bytes
+
+  message.copy(box, offset)
+  return this.stream._push(box)
+}
+
+Feed.prototype.remoteSupports = function (name) {
+  return this.stream.remoteSupports(name)
+}
+
 Feed.prototype.destroy = function (err) {
   this.stream.destroy(err)
 }
@@ -107,6 +133,22 @@ Feed.prototype._resume = function () {
     }
     self._buffer = null
   }
+}
+
+Feed.prototype._onextension = function (data, start, end) {
+  if (end <= start) return
+
+  var id = varint.decode(data, start)
+  var r = this.stream.remoteExtensions
+  var localId = !r || id >= r.length ? -1 : r[id]
+
+  if (localId === -1) return
+
+  var message = data.slice(start + varint.decode.bytes, end)
+  var name = this.stream.extensions[localId]
+
+  if (this.peer && this.peer.onextension) this.peer.onextension(name, message)
+  else this.emit('extension', name, message)
 }
 
 Feed.prototype._onmessage = function (type, data, start, end) {
