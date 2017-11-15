@@ -220,6 +220,11 @@ Protocol.prototype._close = function () {
   var feeds = this.feeds
   this.feeds = []
   for (var i = 0; i < feeds.length; i++) feeds[i]._onclose()
+
+  if (this._xor) {
+    this._xor.final()
+    this._xor = null
+  }
 }
 
 Protocol.prototype._read = function () {
