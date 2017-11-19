@@ -31,6 +31,9 @@ function Protocol (opts) {
   this.extensions = opts.extensions || []
   this.remoteExtensions = null
 
+  // Store our key exchange keys for later calculating the shared session key
+  this._keys = opts.authenticate || null
+
   this._localFeeds = []
   this._remoteFeeds = []
   this._feeds = {}
@@ -112,15 +115,20 @@ Protocol.prototype.feed = function (key, opts) {
   if (first) {
     this.key = key
     this.discoveryKey = dk
+    this._guessRole()
 
     if (!this._sameKey()) return null
 
     if (this.encrypted) {
       feed.nonce = this._nonce = randomBytes(24)
-      this._xor = sodium.crypto_stream_xor_instance(this._nonce, this.key)
-      if (this._remoteNonce) {
-        this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this.key)
+      if (this._role === 'client') {
+        // The client needs to send it's public key to the server for key exchange
+        // and authentication.  Client already knows server's public key.
+        feed.identity = new Buffer(this._keys.pk.length + sodium.crypto_box_SEALBYTES)
+        // The client's key is encrypted using server's key
+        sodium.crypto_box_seal(feed.identity, this._keys.pk, this.key)
       }
+      this._startEncryption()
     }
 
     if (this._needsKey) {
@@ -267,6 +275,93 @@ Protocol.prototype._onhandshake = function (handshake) {
   this.emit('handshake')
 }
 
+Protocol.prototype._guessRole = function () {
+  if (this._role) return
+  if (!this.key) return
+  // on an authenticated connection, the server is the one who's public key
+  // matches the hypercore key.
+  this._role = this._keys
+    ? this._keys.pk.toString('hex') === this.key.toString('hex')
+      ? 'server' : 'client'
+      : 'peer'
+}
+
+Protocol.prototype._startEncryption = function () {
+  console.log("\nSTART ENCRYPTION?\n")
+  // Make sure we have the key and nonce
+  if (!this.key || !this._nonce) return
+
+  this._guessRole()
+
+  // Peer mode means the shared key is simply the public key
+  if (this._role === 'peer') {
+    if (!this._xor) {
+      console.log('Start simple encryption outgoing')
+      console.log('LNonce', this._nonce.toString('hex'))
+      console.log('Key', this.key.toString('hex'))
+      this._xor = sodium.crypto_stream_xor_instance(this._nonce, this.key)
+    }
+    if (!this._remoteXor && this._remoteNonce) {
+      console.log('Start simple encryption incoming')
+      console.log('RNonce', this._remoteNonce.toString('hex'))
+      console.log('Key', this.key.toString('hex'))
+      this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this.key)
+    }
+    return
+  }
+
+  if (this._role === 'server') {
+    // The server needs the client's public key to calculate shared keys
+    if (!this.remoteIdentity) return
+
+    if (!this._sessionKeys) {
+      this._sessionKeys = {
+        rx: Buffer.alloc(sodium.crypto_kx_SESSIONKEYBYTES),
+        tx: Buffer.alloc(sodium.crypto_kx_SESSIONKEYBYTES)
+      }
+      sodium.crypto_kx_server_session_keys(
+        this._sessionKeys.rx, this._sessionKeys.tx, this._keys.pk, this._keys.sk, this.remoteIdentity)
+    }
+    if (!this._xor) {
+      console.log('Start server tx encryption using key exchange')
+      console.log('LNonce', this._nonce.toString('hex'))
+      console.log('TxKey', this._sessionKeys.tx.toString('hex'))
+      this._xor = sodium.crypto_stream_xor_instance(this._nonce, this._sessionKeys.tx)
+    }
+    if (!this._remoteXor && this._remoteNonce) {
+      console.log('Start server rx encryption using key exchange')
+      console.log('RNonce', this._remoteNonce.toString('hex'))
+      console.log('RxKey', this._sessionKeys.rx.toString('hex'))
+      this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this._sessionKeys.rx)
+    }
+    return
+  }
+
+  if (this._role === 'client') {
+    if (!this._sessionKeys) {
+      this._sessionKeys = {
+        rx: Buffer.alloc(sodium.crypto_kx_SESSIONKEYBYTES),
+        tx: Buffer.alloc(sodium.crypto_kx_SESSIONKEYBYTES)
+      }
+      sodium.crypto_kx_client_session_keys(
+        this._sessionKeys.rx, this._sessionKeys.tx, this._keys.pk, this._keys.sk, this.key)
+    }
+
+    if (!this._xor) {
+      console.log('Start client tx encryption using key exchange')
+      console.log('LNonce', this._nonce.toString('hex'))
+      console.log('TxKey', this._sessionKeys.tx.toString('hex'))
+      this._xor = sodium.crypto_stream_xor_instance(this._nonce, this._sessionKeys.tx)
+    }
+    if (!this._remoteXor && this._remoteNonce) {
+      console.log('Start client rx encryption using key exchange')
+      console.log('RNonce', this._remoteNonce.toString('hex'))
+      console.log('RxKey', this._sessionKeys.rx.toString('hex'))
+      this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this._sessionKeys.rx)
+    }
+  }
+}
+
 Protocol.prototype._onopen = function (id, data, start, end) {
   var feed = decodeFeed(data, start, end)
 
@@ -282,10 +377,16 @@ Protocol.prototype._onopen = function (id, data, start, end) {
         return
       }
       this._remoteNonce = feed.nonce
+      if (feed.identity) {
+        // TODO: decrypt and verify remote public key
+        this.remoteIdentity = new Buffer(this.key.length)
+        sodium.crypto_box_seal_open(this.remoteIdentity, feed.identity, this.key, this._keys.sk)
+        console.log('Remote IDentity', this.remoteIdentity.toString('hex'))
+      }
     }
 
-    if (this.encrypted && this.key && !this._remoteXor) {
-      this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this.key)
+    if (this.encrypted && this.key) {
+      this._startEncryption()
     }
   }
 

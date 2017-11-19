@@ -5,6 +5,9 @@
 message Feed {
   required bytes discoveryKey = 1;
   optional bytes nonce = 2;
+  // If a client wishes to authenticate, it sends it's public key to the server
+  // (sent as sealed box using server's public key)
+  optional bytes identity = 4;
 }
 
 // type=1, overall connection handshake. should be send just after the feed message on the first channel only
