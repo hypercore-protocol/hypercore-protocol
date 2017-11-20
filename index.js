@@ -287,7 +287,7 @@ Protocol.prototype._guessRole = function () {
 }
 
 Protocol.prototype._startEncryption = function () {
-  console.log("\nSTART ENCRYPTION?\n")
+  console.log('\nSTART ENCRYPTION?\n')
   // Make sure we have the key and nonce
   if (!this.key || !this._nonce) return
 
