@@ -13,6 +13,7 @@ message Handshake {
   optional bool live = 2; // keep the connection open forever? both ends have to agree
   optional bytes userData = 3;
   repeated string extensions = 4;
+  optional bool ack = 5; // Should all blocks be explicitly acknowledged?
 }
 
 // type=2, message indicating state changes etc.
