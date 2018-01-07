@@ -16,6 +16,7 @@ function Protocol (opts) {
 
   this.id = opts.id || randomBytes(32)
   this.live = !!opts.live
+  this.ack = !!opts.ack
   this.userData = opts.userData || null
   this.remoteId = null
   this.remoteLive = false
@@ -141,7 +142,8 @@ Protocol.prototype.feed = function (key, opts) {
       id: this.id,
       live: this.live,
       userData: this.userData,
-      extensions: this.extensions
+      extensions: this.extensions,
+      ack: this.ack
     })
   }
 
@@ -263,6 +265,7 @@ Protocol.prototype._onhandshake = function (handshake) {
   this.remoteLive = handshake.live
   this.remoteUserData = handshake.userData
   this.remoteExtensions = indexOf(this.extensions, handshake.extensions)
+  this.remoteAck = handshake.ack
 
   this.emit('handshake')
 }
