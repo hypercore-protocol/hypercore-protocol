@@ -78,5 +78,5 @@ message Data {
   optional bytes signature = 4;
 }
 
-// type=15 (last massage) is an extension message
+// type=15 (last message) is an extension message
 // that is encoded like this <varint user-type><payload>
