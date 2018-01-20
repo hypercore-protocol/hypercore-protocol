@@ -37,6 +37,7 @@ Options include:
 {
   id: optionalPeerId, // you can use this to detect if you connect to yourself
   live: keepStreamOpen, // signal to the other peer that you want to keep this stream open forever
+  ack: false, // Explicitly ask a peer to acknowledge each received block
   userData: opaqueUserData // include user data that you can retrieve on handshake
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
   timeout: 5000 // stream timeout. set to 0 or false to disable.
