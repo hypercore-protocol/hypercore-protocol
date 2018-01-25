@@ -21,11 +21,6 @@
     "test": "standard && tape test.js",
     "protobuf": "protocol-buffers schema.proto -o messages.js"
   },
-  "browserify": {
-    "transform": [
-      "brfs"
-    ]
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/mafintosh/hypercore-protocol.git"
