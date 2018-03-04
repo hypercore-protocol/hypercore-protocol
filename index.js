@@ -13,6 +13,7 @@ function Protocol (opts) {
   if (!opts) opts = {}
 
   stream.Duplex.call(this)
+  var self = this
 
   this.id = opts.id || randomBytes(32)
   this.live = !!opts.live
@@ -51,12 +52,22 @@ function Protocol (opts) {
   this._interval = null
   this._keepAlive = 0
   this._remoteKeepAlive = 0
+  this._maybeFinalize = maybeFinalize
 
   if (opts.timeout !== 0 && opts.timeout !== false) this.setTimeout(opts.timeout || 5000, this._ontimeout)
   this.on('finish', this.finalize)
+
+  function maybeFinalize (err) {
+    if (err) return self.destroy(err)
+    if (!self.expectedFeeds) self.finalize()
+  }
 }
 
 inherits(Protocol, stream.Duplex)
+
+Protocol.prototype._prefinalize = function () {
+  if (!this.emit('prefinalize', this._maybeFinalize)) this.finalize()
+}
 
 Protocol.prototype.setTimeout = function (ms, ontimeout) {
   if (this.destroyed) return

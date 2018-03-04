@@ -103,7 +103,7 @@ Feed.prototype.close = function () {
     if (this.stream.destroyed) return
     if (this.stream.expectedFeeds <= 0 || --this.stream.expectedFeeds) return
 
-    this.stream.finalize()
+    this.stream._prefinalize()
   }
 }
 
