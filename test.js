@@ -1,9 +1,10 @@
 var tape = require('tape')
 var choppa = require('choppa')
 var protocol = require('./')
+var bufferFrom = require('buffer-from')
 
-var KEY = new Buffer('01234567890123456789012345678901')
-var OTHER_KEY = new Buffer('12345678901234567890123456789012')
+var KEY = bufferFrom('01234567890123456789012345678901')
+var OTHER_KEY = bufferFrom('12345678901234567890123456789012')
 
 tape('basic', function (t) {
   t.plan(2)
@@ -33,31 +34,31 @@ tape('basic with handshake options', function (t) {
     '8c797667bf307d82c51a8308fe477b781a13708e0ec1f2cc7f497392574e2464'
   ]
 
-  var a = protocol({id: new Buffer('a'), live: true, userData: new Buffer(data)})
-  var b = protocol({id: new Buffer('b'), live: false, ack: true})
+  var a = protocol({id: bufferFrom('a'), live: true, userData: bufferFrom(data)})
+  var b = protocol({id: bufferFrom('b'), live: false, ack: true})
 
   a.feed(KEY)
   b.feed(KEY)
 
   a.once('handshake', function () {
-    t.same(a.id, new Buffer('a'))
+    t.same(a.id, bufferFrom('a'))
     t.same(a.live, true)
     t.same(a.ack, false)
-    t.same(a.userData, new Buffer(data))
-    t.same(a.remoteId, new Buffer('b'))
+    t.same(a.userData, bufferFrom(data))
+    t.same(a.remoteId, bufferFrom('b'))
     t.same(a.remoteLive, false)
     t.same(a.remoteUserData, null)
     t.same(a.remoteAck, true)
   })
 
   b.once('handshake', function () {
-    t.same(b.id, new Buffer('b'))
+    t.same(b.id, bufferFrom('b'))
     t.same(b.live, false)
     t.same(b.ack, true)
     t.same(b.userData, null)
-    t.same(b.remoteId, new Buffer('a'))
+    t.same(b.remoteId, bufferFrom('a'))
     t.same(b.remoteLive, true)
-    t.same(b.remoteUserData, new Buffer(data))
+    t.same(b.remoteUserData, bufferFrom(data))
     t.same(b.remoteAck, false)
   })
 
@@ -82,10 +83,10 @@ tape('send messages', function (t) {
   })
 
   ch2.on('data', function (data) {
-    t.same(data, {index: 42, signature: null, value: new Buffer('hi'), nodes: []})
+    t.same(data, {index: 42, signature: null, value: bufferFrom('hi'), nodes: []})
   })
 
-  ch1.data({index: 42, value: new Buffer('hi')})
+  ch1.data({index: 42, value: bufferFrom('hi')})
 
   ch2.on('request', function (request) {
     t.same(request, {index: 10, hash: false, bytes: 0, nodes: 0})
@@ -150,10 +151,10 @@ tape('send messages (chunked)', function (t) {
   })
 
   ch2.on('data', function (data) {
-    t.same(data, {index: 42, signature: null, value: new Buffer('hi'), nodes: []})
+    t.same(data, {index: 42, signature: null, value: bufferFrom('hi'), nodes: []})
   })
 
-  ch1.data({index: 42, value: new Buffer('hi')})
+  ch1.data({index: 42, value: bufferFrom('hi')})
 
   ch2.on('request', function (request) {
     t.same(request, {index: 10, hash: false, bytes: 0, nodes: 0})
@@ -218,10 +219,10 @@ tape('send messages (concat)', function (t) {
   })
 
   ch2.on('data', function (data) {
-    t.same(data, {index: 42, signature: null, value: new Buffer('hi'), nodes: []})
+    t.same(data, {index: 42, signature: null, value: bufferFrom('hi'), nodes: []})
   })
 
-  ch1.data({index: 42, value: new Buffer('hi')})
+  ch1.data({index: 42, value: bufferFrom('hi')})
 
   ch2.on('request', function (request) {
     t.same(request, {index: 10, hash: false, bytes: 0, nodes: 0})
@@ -363,7 +364,7 @@ tape('stream is encrypted', function (t) {
   var ch2 = b.feed(KEY)
 
   ch2.on('data', function (data) {
-    t.same(data.value, new Buffer('i am secret'))
+    t.same(data.value, bufferFrom('i am secret'))
     t.end()
   })
 
@@ -373,7 +374,7 @@ tape('stream is encrypted', function (t) {
 
   a.pipe(b).pipe(a)
 
-  ch1.data({index: 42, value: new Buffer('i am secret')})
+  ch1.data({index: 42, value: bufferFrom('i am secret')})
 })
 
 tape('stream can be unencrypted', function (t) {
@@ -386,7 +387,7 @@ tape('stream can be unencrypted', function (t) {
 
   ch2.on('data', function (data) {
     t.ok(sawSecret, 'saw secret')
-    t.same(data.value, new Buffer('i am secret'))
+    t.same(data.value, bufferFrom('i am secret'))
     t.end()
   })
 
@@ -398,7 +399,7 @@ tape('stream can be unencrypted', function (t) {
 
   a.pipe(b).pipe(a)
 
-  ch1.data({index: 42, value: new Buffer('i am secret')})
+  ch1.data({index: 42, value: bufferFrom('i am secret')})
 })
 
 tape('keep alives', function (t) {
@@ -511,12 +512,12 @@ tape('extension message', function (t) {
 
   ch2.on('extension', function (type, message) {
     t.same(type, 'b')
-    t.same(message, new Buffer('hello ch2'))
+    t.same(message, bufferFrom('hello ch2'))
   })
 
   ch1.on('extension', function (type, message) {
     t.same(type, 'b')
-    t.same(message, new Buffer('hello ch1'))
+    t.same(message, bufferFrom('hello ch1'))
   })
 
   a.once('handshake', function () {
@@ -524,9 +525,9 @@ tape('extension message', function (t) {
     t.same(a.remoteSupports('b'), true)
     t.same(a.remoteSupports('c'), false)
 
-    ch1.extension('a', new Buffer('nooo'))
-    ch1.extension('b', new Buffer('hello ch2'))
-    ch1.extension('c', new Buffer('nooo'))
+    ch1.extension('a', bufferFrom('nooo'))
+    ch1.extension('b', bufferFrom('hello ch2'))
+    ch1.extension('c', bufferFrom('nooo'))
   })
 
   b.once('handshake', function () {
@@ -534,9 +535,9 @@ tape('extension message', function (t) {
     t.same(b.remoteSupports('b'), true)
     t.same(b.remoteSupports('c'), false)
 
-    ch2.extension('a', new Buffer('nooo'))
-    ch2.extension('b', new Buffer('hello ch1'))
-    ch2.extension('c', new Buffer('nooo'))
+    ch2.extension('a', bufferFrom('nooo'))
+    ch2.extension('b', bufferFrom('hello ch1'))
+    ch2.extension('c', bufferFrom('nooo'))
   })
 
   a.pipe(b).pipe(a)
