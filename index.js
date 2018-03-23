@@ -5,7 +5,7 @@ var sodium = require('sodium-universal')
 var indexOf = require('sorted-indexof')
 var feed = require('./feed')
 var messages = require('./messages')
-var bufferAlloc = require('buffer-alloc')
+var bufferAlloc = require('buffer-alloc-unsafe')
 var bufferFrom = require('buffer-from')
 
 module.exports = Protocol

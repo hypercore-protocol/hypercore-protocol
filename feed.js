@@ -2,7 +2,7 @@ var events = require('events')
 var inherits = require('inherits')
 var varint = require('varint')
 var messages = require('./messages')
-var bufferAlloc = require('buffer-alloc')
+var bufferAlloc = require('buffer-alloc-unsafe')
 
 module.exports = Feed
 
