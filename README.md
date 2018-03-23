@@ -15,7 +15,7 @@ var protocol = require('hypercore-protocol')
 var stream = protocol()
 
 // open a feed specified by a 32 byte key
-var feed = stream.feed(Buffer('deadbeefdeadbeefdeadbeefdeadbeef'))
+var feed = stream.feed(Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef'))
 
 feed.request({block: 42})
 feed.on('data', function (message) {

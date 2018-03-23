@@ -4,6 +4,8 @@
   "description": "Stream that implements the hypercore protocol",
   "main": "index.js",
   "dependencies": {
+    "buffer-alloc": "^1.1.0",
+    "buffer-from": "^1.0.0",
     "inherits": "^2.0.3",
     "protocol-buffers-encodings": "^1.1.0",
     "readable-stream": "^2.2.6",
