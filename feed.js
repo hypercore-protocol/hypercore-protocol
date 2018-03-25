@@ -119,7 +119,7 @@ Feed.prototype._onclose = function () {
     this.close()
     if (this.remoteId > -1) this.stream._remoteFeeds[this.remoteId] = null
     var hex = this.discoveryKey.toString('hex')
-    if (this._feeds[hex] === this) delete this._feeds[hex]
+    if (this.stream._feeds[hex] === this) delete this.stream._feeds[hex]
   }
 
   if (this.peer) this.peer.onclose()
