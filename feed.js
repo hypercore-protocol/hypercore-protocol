@@ -93,8 +93,6 @@ Feed.prototype.destroy = function (err) {
 }
 
 Feed.prototype.close = function () {
-  if (this.closed) return
-
   var i = this.stream.feeds.indexOf(this)
 
   if (i > -1) {
@@ -107,7 +105,6 @@ Feed.prototype.close = function () {
     if (this.stream.expectedFeeds <= 0 || --this.stream.expectedFeeds) return
 
     this.stream._prefinalize()
-    this._onclose()
   }
 }
 
