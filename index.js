@@ -33,6 +33,7 @@ function Protocol (opts) {
   this.feeds = []
   this.expectedFeeds = opts.expectedFeeds || 0
   this.extensions = opts.extensions || []
+  this.extensions.sort() // sort for sorted-indexof calls
   this.remoteExtensions = null
 
   this._localFeeds = []
