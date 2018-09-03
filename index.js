@@ -55,9 +55,11 @@ function Protocol (opts) {
   this._keepAlive = 0
   this._remoteKeepAlive = 0
   this._maybeFinalize = maybeFinalize
+  this._utp = null
 
   if (opts.timeout !== 0 && opts.timeout !== false) this.setTimeout(opts.timeout || 5000, this._ontimeout)
   this.on('finish', this.finalize)
+  this.on('pipe', this._onpipe)
 
   function maybeFinalize (err) {
     if (err) return self.destroy(err)
@@ -66,6 +68,10 @@ function Protocol (opts) {
 }
 
 inherits(Protocol, stream.Duplex)
+
+Protocol.prototype._onpipe = function (stream) {
+  if (typeof stream.setContentSize === 'function') this._utp = stream
+}
 
 Protocol.prototype._prefinalize = function () {
   if (!this.emit('prefinalize', this._maybeFinalize)) this.finalize()
@@ -410,6 +416,11 @@ Protocol.prototype._parseLength = function (data, start) {
       this._missing = varint.decode(this._length)
       this._pointer = 0
       if (this._missing > 8388608) return this._tooBig(data.length)
+      if (this._utp) {
+        var reallyMissing = this._missing - (data.length - start)
+        console.log(reallyMissing)
+        if (reallyMissing > 0 && !this._needsKey) this._utp.setContentSize(reallyMissing)
+      }
       return start
     }
 
