@@ -418,7 +418,6 @@ Protocol.prototype._parseLength = function (data, start) {
       if (this._missing > 8388608) return this._tooBig(data.length)
       if (this._utp) {
         var reallyMissing = this._missing - (data.length - start)
-        console.log(reallyMissing)
         if (reallyMissing > 0 && !this._needsKey) this._utp.setContentSize(reallyMissing)
       }
       return start
