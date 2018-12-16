@@ -34,6 +34,7 @@ function Protocol (opts) {
   this.expectedFeeds = opts.expectedFeeds || 0
   this.extensions = opts.extensions || []
   this.remoteExtensions = null
+  this.maxFeeds = opts.maxFeeds || 256
 
   this._localFeeds = []
   this._remoteFeeds = []
@@ -109,7 +110,7 @@ Protocol.prototype.feed = function (key, opts) {
     return ch
   }
 
-  if (this._localFeeds.length >= 256) {
+  if (this._localFeeds.length >= this.maxFeeds) {
     this._tooManyFeeds()
     return null
   }
@@ -328,7 +329,7 @@ Protocol.prototype._onmessage = function (data, start, end) {
   var id = header >> 4
   var type = header & 15
 
-  if (id >= 256) return this._tooManyFeeds()
+  if (id >= this.maxFeeds) return this._tooManyFeeds()
   while (this._remoteFeeds.length < id) this._remoteFeeds.push(null)
 
   var ch = this._remoteFeeds[id]
@@ -437,7 +438,7 @@ Protocol.prototype._sameKey = function () {
 }
 
 Protocol.prototype._tooManyFeeds = function () {
-  this.destroy(new Error('Only 256 feeds currently supported. Open a Github issue if you need more'))
+  this.destroy(new Error('Only ' + this.maxFeeds + ' feeds currently supported. Open a Github issue if you need more'))
 }
 
 Protocol.prototype._tooBig = function (len) {
