@@ -438,7 +438,7 @@ Protocol.prototype._sameKey = function () {
 }
 
 Protocol.prototype._tooManyFeeds = function () {
-  this.destroy(new Error('Only ' + this.maxFeeds + ' feeds currently supported. Open a Github issue if you need more'))
+  this.destroy(new Error('The maximum of ' + this.maxFeeds + ' feeds has been exceeded.'))
 }
 
 Protocol.prototype._tooBig = function (len) {
