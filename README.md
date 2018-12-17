@@ -31,28 +31,42 @@ stream.pipe(anotherStream).pipe(stream)
 
 Create a new protocol duplex stream.
 
-Options include:
+Available options:
 
 ``` js
 {
-  id: optionalPeerId, // you can use this to detect if you connect to yourself
-  live: keepStreamOpen, // signal to the other peer that you want to keep this stream open forever
-  ack: false, // Explicitly ask a peer to acknowledge each received block
-  userData: opaqueUserData // include user data that you can retrieve on handshake
+  id: optionalPeerId, // you can use this to detect if you connect to yourself (default: randomBytes(32))
+  live: keepStreamOpen, // signal to the other peer that you want to keep this stream open forever (default: false)
+  ack: false, // Explicitly ask a peer to acknowledge each received block (default: false)
+  userData: opaqueUserData // include user data that you can retrieve on handshake (default: null)
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
-  timeout: 5000 // stream timeout. set to 0 or false to disable.
+  timeout: 5000, // stream timeout. set to 0 or false to disable.
+  expectedFeeds: 0, // one less than the amount of feeds expected. (default: 0 = one feed expected per peer)
+  extensions: [extensionName], // included list of supported extension on handshake (default: [])
+  maxFeeds: 256 // maximum number of feeds this core should support (default: 256)
 }
 ```
 
 If you don't specify a peer id a random 32 byte will be used.
 You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
 
-#### `var feed = stream.feed(key)`
+#### `var feed = stream.feed(key[, opts])`
 
 Signal the other end that you want to share a hypercore feed.
 
 You can use the same stream to share more than one BUT the first feed shared
 should be the same one. The key of the first feed is also used to encrypt the stream using [libsodium](https://github.com/mafintosh/sodium-native#crypto_stream_xorcipher-message-nonce-key).
+
+Available options:
+
+```js
+{
+  discoveryKey: discoveryKey, // Custom (or precomputed) discovery key (default: null, computer from passed-in key) 
+  peer: { // optional peer to be connected to every peer
+    ontick () {} // triggered at the same time as the `tick` event.
+  }
+}
+```
 
 #### `stream.on('handshake')`
 
