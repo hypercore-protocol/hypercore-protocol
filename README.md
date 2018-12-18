@@ -35,7 +35,7 @@ Available options:
 
 ``` js
 {
-  id: optionalPeerId, // you can use this to detect if you connect to yourself (default: randomBytes(32))
+  id: optionalPeerId, // And id to identify this client, to be transmitted on handshake (default: randomBytes(32))
   live: keepStreamOpen, // signal to the other peer that you want to keep this stream open forever (default: false)
   ack: false, // Explicitly ask a peer to acknowledge each received block (default: false)
   userData: opaqueUserData // include user data that you can retrieve on handshake (default: null)
@@ -49,6 +49,7 @@ Available options:
 
 If you don't specify a peer id a random 32 byte will be used.
 You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
+The peer id will be sent on handshake and can be used to identify the connection.
 
 #### `var feed = stream.feed(key[, opts])`
 
