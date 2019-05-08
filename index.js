@@ -98,6 +98,12 @@ Protocol.prototype.setTimeout = function (ms, ontimeout) {
   }
 }
 
+Protocol.prototype.has = function (key) {
+  var hex = discoveryKey(key).toString('hex')
+  var ch = this._feeds[hex]
+  return !!ch
+}
+
 Protocol.prototype.feed = function (key, opts) {
   if (this.destroyed) return null
   if (!opts) opts = {}

@@ -54,6 +54,10 @@ Signal the other end that you want to share a hypercore feed.
 You can use the same stream to share more than one BUT the first feed shared
 should be the same one. The key of the first feed is also used to encrypt the stream using [libsodium](https://github.com/mafintosh/sodium-native#crypto_stream_xorcipher-message-nonce-key).
 
+#### `var bool = stream.has(key)`
+
+Returns true if the stream already has open a channel open for the given key and false if not.
+
 #### `stream.on('handshake')`
 
 Emitted when a protocol handshake has been received. Afterwards you can check `.remoteId` to get the remote peer id, `.remoteLive` to get its live status, or `.remoteUserData` to get its user data.
