@@ -437,6 +437,7 @@ Protocol.prototype._parseLength = function (data, start) {
 }
 
 Protocol.prototype._sameKey = function () {
+  if (!this.encrypted) return true
   if (!this.discoveryKey || !this.remoteDiscoveryKey) return true
   if (this.remoteDiscoveryKey.toString('hex') === this.discoveryKey.toString('hex')) return true
   this.destroy(new Error('First shared hypercore must be the same'))
