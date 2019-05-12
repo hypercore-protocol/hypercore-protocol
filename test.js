@@ -543,7 +543,7 @@ tape('extension message', function (t) {
   a.pipe(b).pipe(a)
 })
 
-tape.only('encrypt: false should ignore the first key', function (t) {
+tape('encrypt: false should ignore the first key', function (t) {
   t.plan(1)
 
   var a = protocol({ encrypt: false })
@@ -551,13 +551,13 @@ tape.only('encrypt: false should ignore the first key', function (t) {
 
   var ch1 = a.feed(KEY)
   b.feed(OTHER_KEY)
-  var ch3 = b.feed(KEY)
+  var ch2 = b.feed(KEY)
 
   ch1.on('data', function (data) {
     t.same(data, {index: 42, signature: null, value: bufferFrom('hi'), nodes: []})
   })
 
-  ch3.data({index: 42, value: bufferFrom('hi')})
+  ch2.data({index: 42, value: bufferFrom('hi')})
 
   a.pipe(b).pipe(a)
 })
