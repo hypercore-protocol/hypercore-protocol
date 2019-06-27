@@ -41,7 +41,7 @@ Options include:
   userData: opaqueUserData // include user data that you can retrieve on handshake
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
   timeout: 5000, // stream timeout. set to 0 or false to disable.
-  extension: [], // names of extensions to use for replication. Must be sorted alphanumerically for handshaking to work
+  extensions: [], // names of extensions to use for replication. Must be sorted alphanumerically for handshaking to work
 }
 ```
 
