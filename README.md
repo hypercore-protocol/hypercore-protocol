@@ -12,18 +12,28 @@ npm install hypercore-protocol
 
 ``` js
 var protocol = require('hypercore-protocol')
-var stream = protocol()
 
-// open a feed specified by a 32 byte key
-var feed = stream.feed(Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef'))
+// create two streams with hypercore protocol
+var streamA = protocol({ id: 'a' })
+var streamB = protocol({ id: 'b' })
 
-feed.request({block: 42})
-feed.on('data', function (message) {
-  console.log(message) // contains message.index and message.value
+// open two feeds specified by a 32 byte key
+var key = Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef')
+var feed = streamA.feed(key)
+var remoteFeed = streamB.feed(key)
+
+// add data to feed
+feed.data({ index: 1, value: '{ block: 42 }'})
+
+// listen data in remoteFeed
+remoteFeed.on('data', function (message) {
+  console.log(message.value.toString())
 })
 
-stream.pipe(anotherStream).pipe(stream)
+streamA.pipe(streamB).pipe(streamA)
 ```
+
+`output => { block: 42 }`
 
 ## API
 
