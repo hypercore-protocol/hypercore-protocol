@@ -40,7 +40,8 @@ Options include:
   ack: false, // Explicitly ask a peer to acknowledge each received block
   userData: opaqueUserData // include user data that you can retrieve on handshake
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
-  timeout: 5000 // stream timeout. set to 0 or false to disable.
+  timeout: 5000, // stream timeout. set to 0 or false to disable.
+  extensions: [], // names of extensions to use for replication. Must be sorted alphanumerically for handshaking to work
 }
 ```
 
@@ -140,6 +141,14 @@ Send a `data` message. See the [schema.proto](schema.proto) file for more inform
 #### `feed.on('data', data)`
 
 Emitted when a `data` message has been received.
+
+#### `feed.extension(name, message)`
+
+Send an `extension` message. `name` must be in `extensions` list. See the [schema.proto](schema.proto) file for more information.
+
+#### `feed.on('extension', name, message)`
+
+Emitted when an `extension` message has been received.
 
 #### `feed.on('close')`
 
