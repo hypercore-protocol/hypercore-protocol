@@ -319,7 +319,7 @@ Protocol.prototype._onopen = function (id, data, start, end) {
   }
 
   this._remoteFeeds[id] = this._feed(feed.discoveryKey)
-  feed.remoteId = id
+  this._remoteFeeds[id].remoteId = id
 
   this.emit('feed', feed.discoveryKey)
 }
