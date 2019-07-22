@@ -561,3 +561,18 @@ tape('encrypt: false should ignore the first key', function (t) {
 
   a.pipe(b).pipe(a)
 })
+
+tape('feed channel ids are set up correctly', function (t) {
+  var a = protocol()
+  var b = protocol()
+
+  a.feed(KEY)
+  a.pipe(b).pipe(a)
+
+  b.once('feed', function () {
+    var ch2 = b.feed(KEY)
+    t.ok(ch2.id > -1)
+    t.ok(ch2.remoteId > -1)
+    t.end()
+  })
+})
