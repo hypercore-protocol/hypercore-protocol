@@ -29,6 +29,7 @@ message Have {
   required uint64 start = 1;
   optional uint64 length = 2 [default = 1]; // defaults to 1
   optional bytes bitfield = 3;
+  optional bool ack = 4; // when true, this Have message is an acknowledgement
 }
 
 // type=4, what did we lose?
