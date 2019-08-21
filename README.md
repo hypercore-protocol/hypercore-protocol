@@ -56,7 +56,7 @@ Options include:
 ```
 
 If you don't specify a peer id a random 32 byte will be used.
-You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
+You can access the local peer id using `stream.id` and the remote peer id using `stream.remoteId`.
 
 #### `var feed = stream.feed(key)`
 
@@ -67,7 +67,7 @@ should be the same one. The key of the first feed is also used to encrypt the st
 
 #### `var bool = stream.has(key)`
 
-Returns true if the stream already has open a channel open for the given key and false if not.
+Returns true if the stream already has a channel open for the given key and false if not.
 
 #### `stream.on('handshake')`
 
@@ -77,8 +77,7 @@ Emitted when a protocol handshake has been received. Afterwards you can check `.
 
 Emitted when a remote is sharing a feed. `discoveryKey` is the hypercore discovery key of the feed they want to share.
 
-If you are sharing multiple hypercores on the same port you can use this event to wait for the remote peer to indicate which hypercore
-they are interested in.
+If you are sharing multiple hypercores on the same port you can use this event to wait for the remote peer to indicate which hypercore they are interested in.
 
 #### `stream.destroy([error])`
 
@@ -176,7 +175,7 @@ An alias to `stream.destroy`.
 
 The hypercore protocol uses a basic varint length prefixed format to send messages over the wire.
 
-All messages contains a header indicating the type and feed id, and a protobuf encoded payload.
+All messages contain a header indicating the type and feed id, and a protobuf encoded payload.
 
 ```
 message = header + payload
