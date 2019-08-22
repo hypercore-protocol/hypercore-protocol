@@ -3,6 +3,7 @@ var inherits = require('inherits')
 var varint = require('varint')
 var messages = require('./messages')
 var bufferAlloc = require('buffer-alloc-unsafe')
+var debug = require('debug')('hypercore-protocol')
 
 module.exports = Feed
 
@@ -27,44 +28,54 @@ function Feed (stream) {
 inherits(Feed, events.EventEmitter)
 
 Feed.prototype.handshake = function (message) {
+  debug(this.id, 'send HANDSHAKE', message)
   return this._send(1, messages.Handshake, message)
 }
 
 Feed.prototype.info = function (message) {
+  debug(this.id, 'send INFO', message)
   return this._send(2, messages.Info, message)
 }
 
 Feed.prototype.have = function (message) {
+  debug(this.id, 'send HAVE', message)
   return this._send(3, messages.Have, message)
 }
 
 Feed.prototype.unhave = function (message) {
+  debug(this.id, 'send UNHAVE', message)
   return this._send(4, messages.Unhave, message)
 }
 
 Feed.prototype.want = function (message) {
+  debug(this.id, 'send WANT', message)
   return this._send(5, messages.Want, message)
 }
 
 Feed.prototype.unwant = function (message) {
+  debug(this.id, 'send UNWANT', message)
   return this._send(6, messages.Unwant, message)
 }
 
 Feed.prototype.request = function (message) {
+  debug(this.id, 'send REQUEST', message)
   return this._send(7, messages.Request, message)
 }
 
 Feed.prototype.cancel = function (message) {
+  debug(this.id, 'send CANCEL', message)
   return this._send(8, messages.Cancel, message)
 }
 
 Feed.prototype.data = function (message) {
+  debug(this.id, 'send DATA', message)
   return this._send(9, messages.Data, message)
 }
 
 Feed.prototype.extension = function (type, message) {
   var id = this.stream.extensions.indexOf(type)
   if (id === -1) return false
+  debug(this.id, 'send EXTENSION', type, message)
 
   var header = this.header | 15
   var len = this.headerLength + varint.encodingLength(id) + message.length
@@ -172,6 +183,17 @@ Feed.prototype._onmessage = function (type, data, start, end) {
 }
 
 Feed.prototype._emit = function (type, message) {
+  switch (type) {
+    case 2: debug(this.id, 'recv INFO', message); break
+    case 3: debug(this.id, 'recv HAVE', message); break
+    case 4: debug(this.id, 'recv UNHAVE', message); break
+    case 5: debug(this.id, 'recv WANT', message); break
+    case 6: debug(this.id, 'recv UNWANT', message); break
+    case 7: debug(this.id, 'recv REQUEST', message); break
+    case 8: debug(this.id, 'recv CANCEL', message); break
+    case 9: debug(this.id, 'recv DATA', message); break
+  }
+
   if (this.peer) {
     switch (type) {
       case 2: return this.peer.oninfo(message)

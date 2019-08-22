@@ -6,6 +6,7 @@
   "dependencies": {
     "buffer-alloc-unsafe": "^1.0.0",
     "buffer-from": "^1.0.0",
+    "debug": "^4.1.1",
     "inherits": "^2.0.3",
     "protocol-buffers-encodings": "^1.1.0",
     "readable-stream": "^2.2.6",
