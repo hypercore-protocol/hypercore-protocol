@@ -167,7 +167,10 @@ Feed.prototype._onmessage = function (type, data, start, end) {
   var message = decodeMessage(type, data, start, end)
   if (!message || this.closed) return
 
-  if (type === 1) return this.stream._onhandshake(message)
+  if (type === 1) {
+    debug(this.id, 'recv HANDSHAKE', message)
+    return this.stream._onhandshake(message)
+  }
 
   if (!this._buffer) {
     this._emit(type, message)
