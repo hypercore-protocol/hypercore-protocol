@@ -186,15 +186,17 @@ Feed.prototype._onmessage = function (type, data, start, end) {
 }
 
 Feed.prototype._emit = function (type, message) {
-  switch (type) {
-    case 2: debug(this.id, 'recv INFO', message); break
-    case 3: debug(this.id, 'recv HAVE', message); break
-    case 4: debug(this.id, 'recv UNHAVE', message); break
-    case 5: debug(this.id, 'recv WANT', message); break
-    case 6: debug(this.id, 'recv UNWANT', message); break
-    case 7: debug(this.id, 'recv REQUEST', message); break
-    case 8: debug(this.id, 'recv CANCEL', message); break
-    case 9: debug(this.id, 'recv DATA', message); break
+  if (debug.enabled) {
+    switch (type) {
+      case 2: debug(this.id, 'recv INFO', message); break
+      case 3: debug(this.id, 'recv HAVE', message); break
+      case 4: debug(this.id, 'recv UNHAVE', message); break
+      case 5: debug(this.id, 'recv WANT', message); break
+      case 6: debug(this.id, 'recv UNWANT', message); break
+      case 7: debug(this.id, 'recv REQUEST', message); break
+      case 8: debug(this.id, 'recv CANCEL', message); break
+      case 9: debug(this.id, 'recv DATA', message); break
+    }
   }
 
   if (this.peer) {
