@@ -1,65 +1,57 @@
-var protocol = require('./')
-var bufferFrom = require('buffer-from')
+const Protocol = require('./')
 
-var a = protocol({id: 'a'})
-var b = protocol({id: 'b'})
+const a = new Protocol(true)
+const b = new Protocol(false)
 
 a.pipe(b).pipe(a)
 
-var key = bufferFrom('This is a 32 byte key, 012345678')
-var missing = 5
+a.on('end', () => console.log('a ended'))
+b.on('end', () => console.log('b ended'))
 
-var channel = a.feed(key)
-var remoteChannel = b.feed(key)
+const key = Buffer.from('This is a 32 byte key, 012345678')
+let missing = 5
 
-a.on('end', function () {
-  console.log('peer a ended')
-})
+const channel = a.open(key, {
+  onhave (have) {
+    console.log('channel.onhave()', have)
 
-b.on('end', function () {
-  console.log('peer b ended')
-})
+    for (var i = 0; i < 5; i++) {
+      channel.request({
+        index: i
+      })
+    }
+  },
+  ondata (data) {
+    console.log('channel.ondata()', data)
 
-channel.on('have', function (have) {
-  console.log('channel.onhave()', have)
-
-  for (var i = 0; i < 5; i++) {
-    channel.request({
-      index: i
-    })
+    if (!--missing) {
+      channel.status({
+        uploading: false,
+        download: false
+      })
+    }
   }
 })
 
-channel.on('data', function (data) {
-  console.log('channel.ondata()', data)
-
-  if (!--missing) {
-    channel.info({
-      uploading: false,
-      download: false
+const remoteChannel = b.open(key, {
+  onrequest (request) {
+    console.log('remoteChannel.onrequest()', request)
+    remoteChannel.data({
+      index: request.index,
+      value: 'sup'
     })
+  },
+  onwant (want) {
+    console.log('remoteChannel.onwant()', want)
+    remoteChannel.have({
+      start: 0,
+      length: 1000
+    })
+  },
+  onstatus (status) {
+    console.log('remoteChannel.onstatus', status)
+    b.finalize()
   }
-})
-
-remoteChannel.on('request', function (request) {
-  console.log('remoteChannel.onrequest()', request)
-  remoteChannel.data({
-    index: request.index,
-    value: 'sup'
-  })
-})
-
-remoteChannel.on('want', function (want) {
-  console.log('remoteChannel.onwant()', want)
-  remoteChannel.have({
-    start: 0,
-    length: 1000
-  })
-})
-
-remoteChannel.on('info', function (info) {
-  console.log('remoteChannel.oninfo', info)
-  b.finalize()
 })
 
 channel.want({

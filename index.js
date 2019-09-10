@@ -119,15 +119,15 @@ class Channelizer {
   // called by the state machine
   destroy (err) {
     this.stream.destroy(err)
-    for (const ch of this.channels.values()) {
+    for (const ch of this.created.values()) {
       this.destroyChannel(ch.discoveryKey)
     }
   }
 
   destroyChannel (dk) {
     const k = dk.toString('hex')
-    const ch = this.channels.get(k)
-    this.channels.delete(k)
+    const ch = this.created.get(k)
+    this.created.delete(k)
     if (ch) ch.destroy()
   }
 }
@@ -206,6 +206,7 @@ module.exports = class ProtocolStream extends Duplex {
     this.handlers = handlers
     this.channelizer = new Channelizer(this)
     this.state = new SHP(initator, this.channelizer)
+    this.once('finish', this.push.bind(this, null))
   }
 
   _write (data, cb) {
@@ -229,7 +230,6 @@ module.exports = class ProtocolStream extends Duplex {
   }
 
   setTimeout (ms, ontimeout) {
-    this.state.ping()
   }
 
   get channelCount () {
@@ -261,5 +261,9 @@ module.exports = class ProtocolStream extends Duplex {
 
     if (ch) ch.close()
     else this.state.close(this.channelizer.allocLocal(), { discoveryKey })
+  }
+
+  finalize () {
+    this.push(null)
   }
 }

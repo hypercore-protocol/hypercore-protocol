@@ -13,11 +13,11 @@ For detailed info on the messages sent on each channel see [simple-hypercore-pro
 ## Usage
 
 ``` js
-const protocol = require('hypercore-protocol')
+const Protocol = require('hypercore-protocol')
 
 // create two streams with hypercore protocol
-const streamA = protocol()
-const streamB = protocol()
+const streamA = new Protocol(true)
+const streamB = new Protocol(false)
 
 // open two feeds specified by a 32 byte key
 const key = Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef')
@@ -39,7 +39,7 @@ streamA.pipe(streamB).pipe(streamA)
 
 ## API
 
-#### `const stream = protocol([options])`
+#### `const stream = new Protocol(initiator, [options])`
 
 Create a new protocol duplex stream.
 
