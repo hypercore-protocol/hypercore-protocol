@@ -1,513 +1,265 @@
-var stream = require('readable-stream')
-var inherits = require('inherits')
-var varint = require('varint')
-var sodium = require('sodium-universal')
-var indexOf = require('sorted-indexof')
-var feed = require('./feed')
-var messages = require('./messages')
-var bufferAlloc = require('buffer-alloc-unsafe')
-var bufferFrom = require('buffer-from')
+const SHP = require('simple-hypercore-protocol')
+const crypto = require('hypercore-crypto')
+const { Duplex } = require('streamx')
 
-module.exports = Protocol
+class Channelizer {
+  constructor (stream) {
+    this.handlers = null
+    this.stream = stream
+    this.created = new Map()
+    this.local = []
+    this.remote = []
+  }
 
-function Protocol (opts) {
-  if (!(this instanceof Protocol)) return new Protocol(opts)
-  if (!opts) opts = {}
+  allocLocal () {
+    const id = this.local.indexOf(null)
+    if (id > -1) return id
+    this.local.push(null)
+    return this.local.length - 1
+  }
 
-  stream.Duplex.call(this)
-  var self = this
+  attachLocal (ch) {
+    const id = this.allocLocal()
+    this.local[id] = ch
+    ch.localId = id
+  }
 
-  this.id = opts.id || randomBytes(32)
-  this.live = !!opts.live
-  this.ack = !!opts.ack
-  this.userData = opts.userData || null
-  this.remoteId = null
-  this.remoteLive = false
-  this.remoteUserData = null
+  attachRemote (ch, id) {
+    if (this.remote.length === id) this.remote.push(null)
+    this.remote[id] = ch
+    ch.remoteId = id
+  }
 
-  this.destroyed = false
-  this.encrypted = opts.encrypt !== false
-  this.key = null
-  this.discoveryKey = null
-  this.remoteDiscoveryKey = null
-  this.feeds = []
-  this.expectedFeeds = opts.expectedFeeds || 0
-  this.extensions = opts.extensions || []
-  this.remoteExtensions = null
-  this.maxFeeds = opts.maxFeeds || 256
+  getChannel (dk) {
+    return this.created.get(dk.toString('hex'))
+  }
 
-  this._localFeeds = []
-  this._remoteFeeds = []
-  this._feeds = {}
+  createChannel (dk) {
+    const hex = dk.toString('hex')
 
-  this._nonce = null
-  this._remoteNonce = null
-  this._xor = null
-  this._remoteXor = null
-  this._needsKey = false
-  this._length = bufferAlloc(varint.encodingLength(8388608))
-  this._missing = 0
-  this._buf = null
-  this._pointer = 0
-  this._data = null
-  this._start = 0
-  this._cb = null
-  this._interval = null
-  this._keepAlive = 0
-  this._remoteKeepAlive = 0
-  this._maybeFinalize = maybeFinalize
-  this._utp = null
+    const old = this.created.get(hex)
+    if (old) return old
 
-  if (opts.timeout !== 0 && opts.timeout !== false) this.setTimeout(opts.timeout || 5000, this._ontimeout)
-  this.on('finish', this.finalize)
-  this.on('pipe', this._onpipe)
+    const fresh = new Channel(this.stream.state, dk, this)
+    this.created.set(hex, fresh)
+    return fresh
+  }
 
-  function maybeFinalize (err) {
-    if (err) return self.destroy(err)
-    if (!self.expectedFeeds) self.finalize()
+  onopen (channelId, message) {
+    const ch = this.createChannel(message.discoveryKey)
+    ch.remoteCapability = message.capability
+    this.attachRemote(ch, channelId)
+    if (ch.localId === -1 && this.stream.handlers.onremoteopen) this.stream.handlers.onremoteopen(ch.discoveryKey)
+    if (ch.handlers && ch.handlers.onopen) ch.handlers.onopen()
+  }
+
+  onoptions (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.onoptions) ch.handlers.onoptions(message)
+  }
+
+  onstatus (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.onstatus) ch.handlers.onstatus(message)
+  }
+
+  onhave (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.onhave) ch.handlers.onhave(message)
+  }
+
+  onunhave (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.onunhave) ch.handlers.onunhave(message)
+  }
+
+  onwant (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.onwant) ch.handlers.onwant(message)
+  }
+
+  onunwant (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.onunwant) ch.handlers.onunwant(message)
+  }
+
+  onrequest (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.onrequest) ch.handlers.onrequest(message)
+  }
+
+  oncancel (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.oncancel) ch.handlers.oncancel(message)
+  }
+
+  ondata (channelId, message) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.ondata) ch.handlers.ondata(message)
+  }
+
+  onclose (channelId, message) {
+    const ch = channelId < this.remote.length ? this.remote[channelId] : null
+    if (ch) {
+      if (ch.handlers && ch.handlers.onclose) ch.handlers.onclose()
+      this.remote[channelId] = null
+    } else if (message.discoveryKey) {
+      const local = this.getChannel(message.discoveryKey)
+      if (local && local.handlers && local.handlers.onclose) local.handlers.onclose()
+    }
+    const dk = ch ? ch.discoveryKey : message.discoveryKey
+    if (dk) this.destroyChannel(dk)
+  }
+
+  // called by the state machine
+  send (data) {
+    return this.stream.push(data)
+  }
+
+  // called by the state machine
+  destroy (err) {
+    this.stream.destroy(err)
+    for (const ch of this.channels.values()) {
+      this.destroyChannel(ch.discoveryKey)
+    }
+  }
+
+  destroyChannel (dk) {
+    const k = dk.toString('hex')
+    const ch = this.channels.get(k)
+    this.channels.delete(k)
+    if (ch) ch.destroy()
   }
 }
 
-inherits(Protocol, stream.Duplex)
+class Channel {
+  constructor (state, dk) {
+    this.key = null
+    this.discoveryKey = dk
+    this.localId = -1
+    this.remoteId = -1
+    this.remoteCapability = null
+    this.handlers = null
+    this.destroyed = false
+    this.state = state
+  }
 
-Protocol.prototype._onpipe = function (stream) {
-  if (typeof stream.setContentSize === 'function') this._utp = stream
-}
+  get opened () {
+    return this.localId > -1
+  }
 
-Protocol.prototype._prefinalize = function () {
-  if (!this.emit('prefinalize', this._maybeFinalize)) this.finalize()
-}
+  get remoteOpened () {
+    return this.remoteId > -1
+  }
 
-Protocol.prototype.setTimeout = function (ms, ontimeout) {
-  if (this.destroyed) return
-  if (ontimeout) this.once('timeout', ontimeout)
+  options (message) {
+    return this.state.options(this.localId, message)
+  }
 
-  var self = this
+  status (message) {
+    return this.state.status(this.localId, message)
+  }
 
-  this._keepAlive = 0
-  this._remoteKeepAlive = 0
+  have (message) {
+    return this.state.have(this.localId, message)
+  }
 
-  clearInterval(this._interval)
-  if (!ms) return
+  unhave (message) {
+    return this.state.unhave(this.localId, message)
+  }
 
-  this._interval = setInterval(kick, (ms / 4) | 0)
-  if (this._interval.unref) this._interval.unref()
+  want (message) {
+    return this.state.want(this.localId, message)
+  }
 
-  function kick () {
-    self._kick()
+  unwant (message) {
+    return this.state.unwant(this.localId, message)
+  }
+
+  request (message) {
+    return this.state.request(this.localId, message)
+  }
+
+  cancel (message) {
+    return this.state.cancel(this.localId, message)
+  }
+
+  data (message) {
+    return this.state.data(this.localId, message)
+  }
+
+  close () {
+    this.state.close(this.localId, {})
+  }
+
+  destroy () {
+    if (this.destroyed) return
+    this.destroyed = true
   }
 }
 
-Protocol.prototype.has = function (key) {
-  var hex = discoveryKey(key).toString('hex')
-  var ch = this._feeds[hex]
-  return !!ch
-}
+module.exports = class ProtocolStream extends Duplex {
+  constructor (initator, handlers = {}) {
+    super()
 
-Protocol.prototype.feed = function (key, opts) {
-  if (this.destroyed) return null
-  if (!opts) opts = {}
+    this.initator = initator
+    this.handlers = handlers
+    this.channelizer = new Channelizer(this)
+    this.state = new SHP(initator, this.channelizer)
+  }
 
-  var dk = opts.discoveryKey || discoveryKey(key)
-  var ch = this._feed(dk)
+  _write (data, cb) {
+    this.state.recv(data)
+    cb(null)
+  }
 
-  if (ch.id > -1) {
-    if (opts.peer) ch.peer = opts.peer
+  _destroy (err) {
+    this.channelizer.destroy()
+    this.state.destroy(err)
+  }
+
+  remoteVerified (key) {
+    const ch = this.channelizer.getChannel(crypto.discoveryKey(key))
+    return !!ch && !!ch.remoteCapability && ch.remoteCapability.equals(this.state.remoteCapability(key))
+  }
+
+  opened (key) {
+    const ch = this.channelizer.getChannel(crypto.discoveryKey(key))
+    return !!(ch && ch.localId > -1)
+  }
+
+  setTimeout (ms, ontimeout) {
+    this.state.ping()
+  }
+
+  get channelCount () {
+    return this.channelizer.channels.size
+  }
+
+  get channels () {
+    return this.channelizer.channels.values()
+  }
+
+  open (key, handlers) {
+    const discoveryKey = crypto.discoveryKey(key)
+    const ch = this.channelizer.createChannel(discoveryKey)
+
+    if (ch.key === null) {
+      ch.key = key
+      this.channelizer.attachLocal(ch)
+      this.state.open(ch.local, { key, discoveryKey })
+    }
+
+    if (handlers) ch.handlers = handlers
+
     return ch
   }
 
-  if (this._localFeeds.length >= this.maxFeeds) {
-    this._tooManyFeeds()
-    return null
+  close (key) {
+    const discoveryKey = crypto.discoveryKey(key)
+    const ch = this.channelizer.getChannel(discoveryKey)
+
+    if (ch) ch.close()
+    else this.state.close(this.channelizer.allocLocal(), { discoveryKey })
   }
-
-  ch.id = this._localFeeds.push(ch) - 1
-  ch.header = ch.id << 4
-  ch.headerLength = varint.encodingLength(ch.header)
-  ch.key = key
-  ch.discoveryKey = dk
-  if (opts.peer) ch.peer = opts.peer
-
-  this.feeds.push(ch)
-
-  var first = !this.key
-  var feed = {
-    discoveryKey: dk,
-    nonce: null
-  }
-
-  if (first) {
-    this.key = key
-    this.discoveryKey = dk
-
-    if (!this._sameKey()) return null
-
-    if (this.encrypted) {
-      feed.nonce = this._nonce = randomBytes(24)
-      this._xor = sodium.crypto_stream_xor_instance(this._nonce, this.key)
-      if (this._remoteNonce) {
-        this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this.key)
-      }
-    }
-
-    if (this._needsKey) {
-      this._needsKey = false
-      this._resume()
-    }
-  }
-
-  var box = encodeFeed(feed, ch.id)
-  if (!feed.nonce && this.encrypted) this._xor.update(box, box)
-  this._keepAlive = 0
-  this.push(box)
-
-  if (this.destroyed) return null
-
-  if (first) {
-    ch.handshake({
-      id: this.id,
-      live: this.live,
-      userData: this.userData,
-      extensions: this.extensions,
-      ack: this.ack
-    })
-  }
-
-  if (ch._buffer.length) ch._resume()
-  else ch._buffer = null
-
-  return ch
-}
-
-Protocol.prototype._resume = function () {
-  var self = this
-  process.nextTick(resume)
-
-  function resume () {
-    if (!self._data) return
-
-    var data = self._data
-    var start = self._start
-    var cb = self._cb
-
-    self._data = null
-    self._start = 0
-    self._cb = null
-    self._parse(data, start, cb)
-  }
-}
-
-Protocol.prototype._kick = function () {
-  if (this._remoteKeepAlive > 4) {
-    clearInterval(this._interval)
-    this.emit('timeout')
-    return
-  }
-
-  for (var i = 0; i < this.feeds.length; i++) {
-    var ch = this.feeds[i]
-    if (ch.peer) ch.peer.ontick()
-    else ch.emit('tick')
-  }
-
-  this._remoteKeepAlive++
-
-  if (this._keepAlive > 2) {
-    this.ping()
-    this._keepAlive = 0
-  } else {
-    this._keepAlive++
-  }
-}
-
-Protocol.prototype.ping = function () {
-  if (!this.key) return true
-  var ping = bufferFrom([0])
-  if (this._xor) this._xor.update(ping, ping)
-  return this.push(ping)
-}
-
-Protocol.prototype.destroy = function (err) {
-  if (this.destroyed) return
-  this.destroyed = true
-  if (err) this.emit('error', err)
-  this._close()
-  this.emit('close')
-}
-
-Protocol.prototype.finalize = function () {
-  if (this.destroyed) return
-  this.destroyed = true
-  this._close()
-  this.push(null)
-}
-
-Protocol.prototype._close = function () {
-  clearInterval(this._interval)
-
-  var feeds = this.feeds
-  this.feeds = []
-  for (var i = 0; i < feeds.length; i++) feeds[i]._onclose()
-
-  if (this._xor) {
-    this._xor.final()
-    this._xor = null
-  }
-}
-
-Protocol.prototype._read = function () {
-  // do nothing, user back-pressures
-}
-
-Protocol.prototype._push = function (data) {
-  if (this.destroyed) return
-  this._keepAlive = 0
-  if (this._xor) this._xor.update(data, data)
-  return this.push(data)
-}
-
-Protocol.prototype._write = function (data, enc, cb) {
-  this._remoteKeepAlive = 0
-  this._parse(data, 0, cb)
-}
-
-Protocol.prototype._feed = function (dk) {
-  var hex = dk.toString('hex')
-  var ch = this._feeds[hex]
-  if (ch) return ch
-  ch = this._feeds[hex] = feed(this)
-  return ch
-}
-
-Protocol.prototype.remoteSupports = function (name) {
-  var i = this.extensions.indexOf(name)
-  return i > -1 && !!this.remoteExtensions && this.remoteExtensions.indexOf(i) > -1
-}
-
-Protocol.prototype._onhandshake = function (handshake) {
-  if (this.remoteId) return
-
-  this.remoteId = handshake.id || randomBytes(32)
-  this.remoteLive = handshake.live
-  this.remoteUserData = handshake.userData
-  this.remoteExtensions = indexOf(this.extensions, handshake.extensions)
-  this.remoteAck = handshake.ack
-
-  this.emit('handshake')
-}
-
-Protocol.prototype._onopen = function (id, data, start, end) {
-  var feed = decodeFeed(data, start, end)
-
-  if (!feed) return this._badFeed()
-
-  if (!this.remoteDiscoveryKey) {
-    this.remoteDiscoveryKey = feed.discoveryKey
-    if (!this._sameKey()) return
-
-    if (this.encrypted && !this._remoteNonce) {
-      if (!feed.nonce) {
-        this.destroy(new Error('Remote did not include a nonce'))
-        return
-      }
-      this._remoteNonce = feed.nonce
-    }
-
-    if (this.encrypted && this.key && !this._remoteXor) {
-      this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this.key)
-    }
-  }
-
-  this._remoteFeeds[id] = this._feed(feed.discoveryKey)
-  this._remoteFeeds[id].remoteId = id
-
-  this.emit('feed', feed.discoveryKey)
-}
-
-Protocol.prototype._onmessage = function (data, start, end) {
-  if (end - start < 2) return
-
-  var header = decodeHeader(data, start)
-  if (header === -1) return this.destroy(new Error('Remote sent invalid header'))
-
-  start += varint.decode.bytes
-
-  var id = header >> 4
-  var type = header & 15
-
-  if (id >= this.maxFeeds) return this._tooManyFeeds()
-  while (this._remoteFeeds.length < id) this._remoteFeeds.push(null)
-
-  var ch = this._remoteFeeds[id]
-
-  if (type === 0) {
-    if (ch) ch._onclose()
-    return this._onopen(id, data, start, end)
-  }
-
-  if (!ch) return this._badFeed()
-  if (type === 15) return ch._onextension(data, start, end)
-  ch._onmessage(type, data, start, end)
-}
-
-Protocol.prototype._parse = function (data, start, cb) {
-  var decrypted = !!this._remoteXor
-
-  if (start) {
-    data = data.slice(start)
-    start = 0
-  }
-
-  if (this._remoteXor) this._remoteXor.update(data, data)
-
-  while (start < data.length && !this.destroyed) {
-    if (this._missing) start = this._parseMessage(data, start)
-    else start = this._parseLength(data, start)
-
-    if (this._needsKey) {
-      this._data = data
-      this._start = start
-      this._cb = cb
-      return
-    }
-
-    if (!decrypted && this._remoteXor) {
-      return this._parse(data, start, cb)
-    }
-  }
-
-  cb()
-}
-
-Protocol.prototype._parseMessage = function (data, start) {
-  var end = start + this._missing
-
-  if (end <= data.length) {
-    var ret = end
-
-    if (this._buf) {
-      data.copy(this._buf, this._pointer, start)
-      data = this._buf
-      start = 0
-      end = data.length
-      this._buf = null
-    }
-
-    this._missing = 0
-    this._pointer = 0
-    if (this.encrypted && !this.key) this._needsKey = true
-    this._onmessage(data, start, end)
-
-    return ret
-  }
-
-  if (!this._buf) {
-    this._buf = bufferAlloc(this._missing)
-    this._pointer = 0
-  }
-
-  var rem = data.length - start
-
-  data.copy(this._buf, this._pointer, start)
-  this._pointer += rem
-  this._missing -= rem
-
-  return data.length
-}
-
-Protocol.prototype._parseLength = function (data, start) {
-  while (!this._missing && start < data.length) {
-    var byte = this._length[this._pointer++] = data[start++]
-
-    if (!(byte & 0x80)) {
-      this._missing = varint.decode(this._length)
-      this._pointer = 0
-      if (this._missing > 8388608) return this._tooBig(data.length)
-      if (this._utp) {
-        var reallyMissing = this._missing - (data.length - start)
-        if (reallyMissing > 0 && !this._needsKey) this._utp.setContentSize(reallyMissing)
-      }
-      return start
-    }
-
-    if (this._pointer >= this._length.length) return this._tooBig(data.length)
-  }
-
-  return start
-}
-
-Protocol.prototype._sameKey = function () {
-  if (!this.encrypted) return true
-  if (!this.discoveryKey || !this.remoteDiscoveryKey) return true
-  if (this.remoteDiscoveryKey.toString('hex') === this.discoveryKey.toString('hex')) return true
-  this.destroy(new Error('First shared hypercore must be the same'))
-  return false
-}
-
-Protocol.prototype._tooManyFeeds = function () {
-  this.destroy(new Error('Only ' + this.maxFeeds + ' feeds currently supported. Open a Github issue if you need more'))
-}
-
-Protocol.prototype._tooBig = function (len) {
-  this.destroy(new Error('Remote message is larger than 8MB (max allowed)'))
-  return len
-}
-
-Protocol.prototype._badFeed = function () {
-  this.destroy(new Error('Remote sent invalid feed message'))
-}
-
-Protocol.prototype._ontimeout = function () {
-  this.destroy(new Error('Remote timed out'))
-}
-
-function decodeHeader (data, start) {
-  try {
-    return varint.decode(data, start)
-  } catch (err) {
-    return -1
-  }
-}
-
-function decodeFeed (data, start, end) {
-  var feed = null
-
-  try {
-    feed = messages.Feed.decode(data, start, end)
-  } catch (err) {
-    return null
-  }
-
-  if (feed.discoveryKey.length !== 32) return null
-  if (feed.nonce && feed.nonce.length !== 24) return null
-
-  return feed
-}
-
-function encodeFeed (feed, id) {
-  var header = id << 4
-  var len = varint.encodingLength(header) + messages.Feed.encodingLength(feed)
-  var box = bufferAlloc(varint.encodingLength(len) + len)
-  var offset = 0
-
-  varint.encode(len, box, offset)
-  offset += varint.encode.bytes
-
-  varint.encode(header, box, offset)
-  offset += varint.encode.bytes
-
-  messages.Feed.encode(feed, box, offset)
-  return box
-}
-
-function discoveryKey (key) {
-  var buf = bufferAlloc(32)
-  sodium.crypto_generichash(buf, bufferFrom('hypercore'), key)
-  return buf
-}
-
-function randomBytes (n) {
-  var buf = bufferAlloc(n)
-  sodium.randombytes_buf(buf)
-  return buf
 }
