@@ -9,7 +9,8 @@
     "streamx": "^2.1.0"
   },
   "devDependencies": {
-    "standard": "^14.1.0"
+    "standard": "^14.1.0",
+    "tape": "^4.11.0"
   },
   "scripts": {
     "test": "standard && tape test.js"
