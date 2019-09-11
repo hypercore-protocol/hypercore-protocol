@@ -254,7 +254,7 @@ module.exports = class ProtocolStream extends Duplex {
     cb(null)
   }
 
-  _predestroy (err) {
+  _predestroy () {
     this.timeout.destroy()
     this.timeout = null
     this.keepAlive.destroy()
