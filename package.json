@@ -6,7 +6,8 @@
   "dependencies": {
     "hypercore-crypto": "^1.0.0",
     "simple-hypercore-protocol": "^1.1.0",
-    "streamx": "^2.1.0"
+    "streamx": "^2.1.0",
+    "timeout-refresh": "^1.0.0"
   },
   "devDependencies": {
     "standard": "^14.1.0",

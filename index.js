@@ -1,5 +1,6 @@
 const SHP = require('simple-hypercore-protocol')
 const crypto = require('hypercore-crypto')
+const timeout = require('timeout-refresh')
 const { Duplex } = require('streamx')
 
 class Channelizer {
@@ -129,6 +130,7 @@ class Channelizer {
 
   // called by the state machine
   send (data) {
+    if (this.stream.keepAlive !== null) this.stream.keepAlive.refresh()
     return this.stream.push(data)
   }
 
@@ -218,6 +220,14 @@ module.exports = class ProtocolStream extends Duplex {
     this.channelizer = new Channelizer(this, handlers.encrypted)
     this.state = new SHP(initator, this.channelizer)
     this.once('finish', this.push.bind(this, null))
+    this.timeout = null
+    this.keepAlive = null
+
+    if (handlers.timeout !== false && handlers.timeout !== 0) {
+      const timeout = handlers.timeout || 20000
+      this.setTimeout(timeout, () => this.destroy(new Error('ETIMEDOUT')))
+      this.setKeepAlive(Math.ceil(timeout / 2))
+    }
   }
 
   get publicKey () {
@@ -229,13 +239,22 @@ module.exports = class ProtocolStream extends Duplex {
   }
 
   _write (data, cb) {
+    if (this.timeout !== null) this.timeout.refresh()
     this.state.recv(data)
     cb(null)
   }
 
-  _destroy (err) {
+  _destroy (cb) {
     this.channelizer.destroy()
-    this.state.destroy(err)
+    this.state.destroy()
+    cb(null)
+  }
+
+  _predestroy (err) {
+    this.timeout.destroy()
+    this.timeout = null
+    this.keepAlive.destroy()
+    this.keepAlive = null
   }
 
   remoteVerified (key) {
@@ -248,8 +267,32 @@ module.exports = class ProtocolStream extends Duplex {
     return !!(ch && ch.localId > -1)
   }
 
+  ping () {
+    return this.state.ping()
+  }
+
+  setKeepAlive (ms) {
+    if (this.keepAlive) this.keepAlive.destroy()
+    if (!ms) {
+      this.keepAlive = null
+      return
+    }
+    this.keepAlive = timeout(ms, ping, this)
+
+    function ping () {
+      this.ping()
+      this.keepAlive = timeout(ms, ping, this)
+    }
+  }
+
   setTimeout (ms, ontimeout) {
-    this.state.ping()
+    if (this.timeout) this.timeout.destroy()
+    if (!ms) {
+      this.timeout = null
+      return
+    }
+    this.timeout = timeout(ms, this.emit.bind(this, 'timeout'))
+    if (ontimeout) this.once('timeout', ontimeout)
   }
 
   get channelCount () {
