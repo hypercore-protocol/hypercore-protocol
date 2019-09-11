@@ -4,12 +4,13 @@ const timeout = require('timeout-refresh')
 const { Duplex } = require('streamx')
 
 class Channelizer {
-  constructor (stream, encrypted) {
+  constructor (stream, encrypted, keyPair) {
     this.stream = stream
     this.created = new Map()
     this.local = []
     this.remote = []
     this.encrypted = encrypted !== false
+    this.keyPair = keyPair
   }
 
   allocLocal () {
@@ -59,7 +60,10 @@ class Channelizer {
     const ch = this.createChannel(message.discoveryKey)
     ch.remoteCapability = message.capability
     this.attachRemote(ch, channelId)
-    if (ch.localId === -1 && this.stream.handlers.onremoteopen) this.stream.handlers.onremoteopen(ch.discoveryKey)
+    if (this.stream.handlers.onremoteopen) {
+      if (ch.localId === -1) this.stream.handlers.onremoteopen(ch.discoveryKey)
+      this.stream.emit('remoteopen', ch.discoveryKey)
+    }
     if (ch.handlers && ch.handlers.onopen) ch.handlers.onopen()
   }
 
@@ -217,7 +221,7 @@ module.exports = class ProtocolStream extends Duplex {
 
     this.initator = initator
     this.handlers = handlers
-    this.channelizer = new Channelizer(this, handlers.encrypted)
+    this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair)
     this.state = new SHP(initator, this.channelizer)
     this.once('finish', this.push.bind(this, null))
     this.timeout = null

@@ -16,8 +16,8 @@ For detailed info on the messages sent on each channel see [simple-hypercore-pro
 const Protocol = require('hypercore-protocol')
 
 // create two streams with hypercore protocol
-const streamA = new Protocol(true)
-const streamB = new Protocol(false)
+const streamA = new Protocol(true) // true because this is the initiator
+const streamB = new Protocol(false) // false because this is not the initiator
 
 // open two feeds specified by a 32 byte key
 const key = Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef')
@@ -55,6 +55,25 @@ Options include:
   onremoteopen (discoveryKey) { } // function called when the remote stream opens a feed you have not
 }
 ```
+
+#### `stream.on('remoteopen', discoveryKey)`
+
+Emitted when the remote opens a feed you have not opened.
+Also calls `stream.handlers.onremoteopen(discoveryKey)`
+
+#### `stream.on('timeout')`
+
+Emitted when the stream times out.
+Per default a timeout triggers a destruction of the stream, unless you disable timeout handling in the constructor.
+
+#### `stream.setTimeout(ms, ontimeout)`
+
+Set a stream timeout.
+
+#### `stream.setKeepAlive(ms)`
+
+Send a keep alive ping every ms, if no other message has been sent.
+This is enabled per default every timeout / 2 ms unless you disable timeout handling in the constructor.
 
 #### `stream.remotePublicKey`
 
