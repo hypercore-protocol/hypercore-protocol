@@ -46,6 +46,7 @@ class Channelizer {
 
   onauthenticate (key, done) {
     if (this.stream.handlers && this.stream.handlers.onauthenticate) this.stream.handlers.onauthenticate(key, done)
+    else done(null)
   }
 
   onhandshake () {
