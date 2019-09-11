@@ -1,7 +1,21 @@
 const Protocol = require('./')
 
-const a = new Protocol(true)
-const b = new Protocol(false)
+const a = new Protocol(true, {
+  onauthenticate (remotePublicKey, done) {
+    console.log('verifying the public key of b', remotePublicKey)
+    done(null)
+  },
+  onhandshake () {
+    console.log('onhandshake()')
+  }
+})
+
+const b = new Protocol(false, {
+  onauthenticate (remotePublicKey, done) {
+    console.log('verifying the public key of a', remotePublicKey)
+    done(null)
+  }
+})
 
 a.pipe(b).pipe(a)
 

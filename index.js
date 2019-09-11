@@ -4,7 +4,6 @@ const { Duplex } = require('streamx')
 
 class Channelizer {
   constructor (stream) {
-    this.handlers = null
     this.stream = stream
     this.created = new Map()
     this.local = []
@@ -43,6 +42,14 @@ class Channelizer {
     const fresh = new Channel(this.stream.state, dk, this)
     this.created.set(hex, fresh)
     return fresh
+  }
+
+  onauthenticate (key, done) {
+    if (this.stream.handlers && this.stream.handlers.onauthenticate) this.stream.handlers.onauthenticate(key, done)
+  }
+
+  onhandshake () {
+    if (this.stream.handlers && this.stream.handlers.onhandshake) this.stream.handlers.onhandshake()
   }
 
   onopen (channelId, message) {
@@ -207,6 +214,14 @@ module.exports = class ProtocolStream extends Duplex {
     this.channelizer = new Channelizer(this)
     this.state = new SHP(initator, this.channelizer)
     this.once('finish', this.push.bind(this, null))
+  }
+
+  get publicKey () {
+    return this.state.publicKey
+  }
+
+  get remotePublicKey () {
+    return this.state.remotePublicKey
   }
 
   _write (data, cb) {

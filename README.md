@@ -50,8 +50,9 @@ Options include:
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
   timeout: 5000, // stream timeout. set to 0 or false to disable.
   keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
+  onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
   onhandshake () { }, // function called when the stream handshake has finished
-  onopen (discoveryKey) { } // function called when the remote stream opens a feed you have not
+  onremoteopen (discoveryKey) { } // function called when the remote stream opens a feed you have not
 }
 ```
 
@@ -62,6 +63,11 @@ The remotes public key.
 #### `stream.publicKey`
 
 Your public key.
+
+#### `const bool = stream.remoteVerified(key)`
+
+Returns true if the remote sent a valid capability for the key when they opened the channel.
+Use this in `onremoteopen` to check that the remote has the key corresponding to the discovery key.
 
 #### `const feed = stream.open(key, handlers)`
 
