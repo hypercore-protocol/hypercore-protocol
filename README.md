@@ -96,10 +96,12 @@ Your public key.
 Returns true if the remote sent a valid capability for the key when they opened the channel.
 Use this in `onremoteopen` to check that the remote has the key corresponding to the discovery key.
 
-#### `const feed = stream.open(key, handlers)`
+#### `const channel = stream.open(key, handlers)`
 
 Signal the other end that you want to share a hypercore feed.
 Also sends a capability that you have the specified key.
+
+[See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L7)
 
 #### `stream.destroy([error])`
 
@@ -108,10 +110,11 @@ Destroy the stream. Closes all feeds as well.
 #### `stream.finalize()`
 
 Gracefully end the stream. Closes all feeds as well.
+This is automatically called when the stream has been sealed and all active channels are closed.
 
 #### `feed.options(message)`
 
-Send an `options` message.
+Send an `options` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L13)
 
 #### `feed.handlers.onoptions(message)`
 
@@ -119,7 +122,7 @@ Called when a options message has been received.
 
 #### `feed.status(message)`
 
-Send an `status` message.
+Send an `status` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L20)
 
 #### `feed.handlers.onstatus(message)`
 
@@ -127,7 +130,7 @@ Called when a status message has been received.
 
 #### `feed.have(message)`
 
-Send a `have` message.
+Send a `have` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L26)
 
 #### `feed.handlers.onhave(message)`
 
@@ -135,7 +138,8 @@ Called when a `have` message has been received.
 
 #### `feed.unhave(message)`
 
-Send a `unhave` message.
+Send a `unhave` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L34)
+
 
 #### `feed.handlers.onunhave(message)`
 
@@ -143,7 +147,7 @@ Called when a `unhave` message has been received.
 
 #### `feed.want(want)`
 
-Send a `want` message.
+Send a `want` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L40)
 
 #### `feed.handlers.onwant(want)`
 
@@ -151,7 +155,7 @@ Called when a `want` message has been received.
 
 #### `feed.unwant(unwant)`
 
-Send a `unwant` message.
+Send a `unwant` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L46)
 
 #### `feed.handlers.onunwant(unwant)`
 
@@ -159,7 +163,8 @@ Called when a `unwant` message has been received.
 
 #### `feed.request(request)`
 
-Send a `request` message.
+Send a `request` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L52)
+
 
 #### `feed.handlers.onrequest(request)`
 
@@ -167,7 +172,7 @@ Called when a `request` message has been received.
 
 #### `feed.cancel(cancel)`
 
-Send a `cancel` message.
+Send a `cancel` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L60)
 
 #### `feed.handlers.oncancel(cancel)`
 
@@ -175,17 +180,17 @@ Called when a `cancel` message has been received.
 
 #### `feed.data(data)`
 
-Send a `data` message.
+Send a `data` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L67)
 
 #### `feed.handlers.ondata(data)`
 
 Called when a `data` message has been received.
 
-#### `feed.extension(name, message)`
+#### `feed.extension(name, buffer)`
 
-Send an `extension` message. `name` must be in `extensions` list.
+Send an `extension` message. `name` must be in the `extensions` list sent in a previous `options` message for this channel.
 
-#### `feed.handlers.onextension(name, message)`
+#### `feed.handlers.onextension(name, buffer)`
 
 Called when an `extension` message has been received.
 
