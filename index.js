@@ -3,11 +3,12 @@ const crypto = require('hypercore-crypto')
 const { Duplex } = require('streamx')
 
 class Channelizer {
-  constructor (stream) {
+  constructor (stream, encrypted) {
     this.stream = stream
     this.created = new Map()
     this.local = []
     this.remote = []
+    this.encrypted = encrypted !== false
   }
 
   allocLocal () {
@@ -214,7 +215,7 @@ module.exports = class ProtocolStream extends Duplex {
 
     this.initator = initator
     this.handlers = handlers
-    this.channelizer = new Channelizer(this)
+    this.channelizer = new Channelizer(this, handlers.encrypted)
     this.state = new SHP(initator, this.channelizer)
     this.once('finish', this.push.bind(this, null))
   }
