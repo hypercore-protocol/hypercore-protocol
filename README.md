@@ -99,9 +99,12 @@ Use this in `onremoteopen` to check that the remote has the key corresponding to
 #### `const channel = stream.open(key, handlers)`
 
 Signal the other end that you want to share a hypercore feed.
-Also sends a capability that you have the specified key.
+
+The feed key will be hashed and sent as the "discovery key" which protects the feed key from being learned by a remote peer who does not already possess it. Also includes a cryptographic proof that the local possesses the feed key, which can be implicitly verified using the above `remoteVerified` api.
 
 [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L7)
+
+The `handlers` is an object of functions for handling incoming messages and is described below.
 
 #### `stream.destroy([error])`
 
