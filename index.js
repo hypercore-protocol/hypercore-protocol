@@ -1,6 +1,8 @@
 const SHP = require('simple-hypercore-protocol')
 const crypto = require('hypercore-crypto')
 const timeout = require('timeout-refresh')
+const inspect = require('inspect-custom-symbol')
+const pretty = require('pretty-hash')
 const { Duplex } = require('streamx')
 
 class Channelizer {
@@ -136,6 +138,7 @@ class Channelizer {
   // called by the state machine
   send (data) {
     if (this.stream.keepAlive !== null) this.stream.keepAlive.refresh()
+    this.stream.bytesSent += data.length
     return this.stream.push(data)
   }
 
@@ -234,6 +237,8 @@ module.exports = class ProtocolStream extends Duplex {
     this.keepAlive = null
     this.autoSeal = handlers.autoSeal !== false
     this.sealed = false
+    this.bytesSent = 0
+    this.bytesReceived = 0
 
     this.once('finish', this.push.bind(this, null))
 
@@ -242,6 +247,23 @@ module.exports = class ProtocolStream extends Duplex {
       this.setTimeout(timeout, () => this.destroy(new Error('ETIMEDOUT')))
       this.setKeepAlive(Math.ceil(timeout / 2))
     }
+  }
+
+  [inspect] (depth, opts) {
+    let indent = ''
+    if (typeof opts.indentationLvl === 'number') {
+      while (indent.length < opts.indentationLvl) indent += ' '
+    }
+
+    return 'HypercoreProtocolStream(\n' +
+      indent + '  publicKey: ' + opts.stylize((this.publicKey && pretty(this.publicKey)), 'string') + '\n' +
+      indent + '  remotePublicKey: ' + opts.stylize((this.remotePublicKey && pretty(this.remotePublicKey)), 'string') + '\n' +
+      indent + '  channelCount: ' + opts.stylize(this.channelCount, 'number') + '\n' +
+      indent + '  destroyed: ' + opts.stylize(this.destroyed, 'boolean') + '\n' +
+      indent + '  sealed: ' + opts.stylize(this.sealed, 'boolean') + '\n' +
+      indent + '  bytesSent: ' + opts.stylize(this.bytesSent, 'number') + '\n' + 
+      indent + '  bytesReceived: ' + opts.stylize(this.bytesReceived, 'number') + '\n' + 
+      indent + ')'
   }
 
   get publicKey () {
@@ -254,6 +276,7 @@ module.exports = class ProtocolStream extends Duplex {
 
   _write (data, cb) {
     if (this.timeout !== null) this.timeout.refresh()
+    this.bytesReceived += data.length
     this.state.recv(data)
     cb(null)
   }

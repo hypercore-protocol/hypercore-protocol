@@ -16,8 +16,8 @@ For detailed info on the messages sent on each channel see [simple-hypercore-pro
 const Protocol = require('hypercore-protocol')
 
 // create two streams with hypercore protocol
-const streamA = new Protocol(true) // true because this is the initiator
-const streamB = new Protocol(false) // false because this is not the initiator
+const streamA = new Protocol(true) // true indicates this is the initiator
+const streamB = new Protocol(false) // false indicates this is not the initiator
 
 // open two feeds specified by a 32 byte key
 const key = Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef')

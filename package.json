@@ -5,6 +5,8 @@
   "main": "index.js",
   "dependencies": {
     "hypercore-crypto": "^1.0.0",
+    "inspect-custom-symbol": "^1.1.0",
+    "pretty-hash": "^1.0.1",
     "simple-hypercore-protocol": "^1.1.0",
     "streamx": "^2.1.0",
     "timeout-refresh": "^1.0.0"

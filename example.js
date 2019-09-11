@@ -19,8 +19,8 @@ const b = new Protocol(false, {
 
 a.pipe(b).pipe(a)
 
-a.on('end', () => console.log('a ended'))
-b.on('end', () => console.log('b ended'))
+a.on('close', () => console.log('a closed', a))
+b.on('close', () => console.log('b closed', b))
 
 const key = Buffer.from('This is a 32 byte key, 012345678')
 let missing = 5
@@ -64,7 +64,7 @@ const remoteChannel = b.open(key, {
   },
   onstatus (status) {
     console.log('remoteChannel.onstatus', status)
-    b.finalize()
+    remoteChannel.close()
   }
 })
 
@@ -72,3 +72,8 @@ channel.want({
   start: 0,
   length: 1000
 })
+
+console.log('a:')
+console.log(a)
+console.log('b:')
+console.log(b)
