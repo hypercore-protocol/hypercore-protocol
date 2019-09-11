@@ -142,7 +142,12 @@ class Channelizer {
   // called by the state machine
   destroy (err) {
     this.stream.destroy(err)
-    for (const ch of this.created.values()) ch.destroy(err)
+    this.local = []
+    this.remote = []
+    for (const ch of this.created.values()) {
+      ch.localId = ch.remoteId = -1
+      if (ch.handlers && ch.handlers.onclose) ch.handlers.onclose()
+    }
     this.created.clear()
   }
 }
@@ -267,6 +272,7 @@ module.exports = class ProtocolStream extends Duplex {
   }
 
   _prefinalize () {
+    if (this.destroyed) return
     if (this.channelCount) return
     if (!this.autoSeal && !this.sealed) return
     this.finalize()
