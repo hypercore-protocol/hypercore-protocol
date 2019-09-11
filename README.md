@@ -48,6 +48,7 @@ Options include:
 ``` js
 {
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
+  autoSeal: true, // set to false to disable an automatic call to stream.seal() when the last channel has closed
   timeout: 20000, // stream timeout. set to 0 or false to disable.
   keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
   onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
@@ -74,6 +75,13 @@ Set a stream timeout.
 
 Send a keep alive ping every ms, if no other message has been sent.
 This is enabled per default every timeout / 2 ms unless you disable timeout handling in the constructor.
+
+#### `stream.seal()`
+
+Calling this tells the replication stream that no other channels are gonna be opened.
+This allows the stream to `end` itself when all current channels are done.
+Per default the stream auto seals itself, when the last open channel is closed. To disable
+that set `autoSeal: false` in the constructor and make sure to call this method when it should be sealed.
 
 #### `stream.remotePublicKey`
 

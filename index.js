@@ -129,6 +129,7 @@ class Channelizer {
 
     if (ch) {
       this.created.delete(ch.discoveryKey.toString('hex'))
+      this.stream._prefinalize()
     }
   }
 
@@ -207,6 +208,7 @@ class Channel {
   }
 
   close () {
+    if (this.closed) return
     this.state.close(this.localId, {})
   }
 
@@ -223,9 +225,12 @@ module.exports = class ProtocolStream extends Duplex {
     this.handlers = handlers
     this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair)
     this.state = new SHP(initator, this.channelizer)
-    this.once('finish', this.push.bind(this, null))
     this.timeout = null
     this.keepAlive = null
+    this.autoSeal = handlers.autoSeal !== false
+    this.sealed = false
+
+    this.once('finish', this.push.bind(this, null))
 
     if (handlers.timeout !== false && handlers.timeout !== 0) {
       const timeout = handlers.timeout || 20000
@@ -259,6 +264,17 @@ module.exports = class ProtocolStream extends Duplex {
     this.timeout = null
     this.keepAlive.destroy()
     this.keepAlive = null
+  }
+
+  _prefinalize () {
+    if (this.channelCount) return
+    if (!this.autoSeal && !this.sealed) return
+    this.finalize()
+  }
+
+  seal () {
+    this.sealed = true
+    this._prefinalize()
   }
 
   remoteVerified (key) {
