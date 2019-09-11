@@ -39,7 +39,7 @@ class Channelizer {
     const old = this.created.get(hex)
     if (old) return old
 
-    const fresh = new Channel(this.stream.state, dk, this)
+    const fresh = new Channel(this.stream.state, this.stream, dk)
     this.created.set(hex, fresh)
     return fresh
   }
@@ -107,15 +107,22 @@ class Channelizer {
 
   onclose (channelId, message) {
     const ch = channelId < this.remote.length ? this.remote[channelId] : null
+
     if (ch) {
-      if (ch.handlers && ch.handlers.onclose) ch.handlers.onclose()
       this.remote[channelId] = null
+      if (ch.handlers && ch.handlers.onclose) ch.handlers.onclose()
     } else if (message.discoveryKey) {
       const local = this.getChannel(message.discoveryKey)
       if (local && local.handlers && local.handlers.onclose) local.handlers.onclose()
     }
-    const dk = ch ? ch.discoveryKey : message.discoveryKey
-    if (dk) this.destroyChannel(dk)
+
+    if (ch && ch.localId > -1) {
+      this.local[ch.localId] = null
+    }
+
+    if (ch) {
+      this.created.delete(ch.discoveryKey.toString('hex'))
+    }
   }
 
   // called by the state machine
@@ -126,33 +133,29 @@ class Channelizer {
   // called by the state machine
   destroy (err) {
     this.stream.destroy(err)
-    for (const ch of this.created.values()) {
-      this.destroyChannel(ch.discoveryKey)
-    }
-  }
-
-  destroyChannel (dk) {
-    const k = dk.toString('hex')
-    const ch = this.created.get(k)
-    this.created.delete(k)
-    if (ch) ch.destroy()
+    for (const ch of this.created.values()) ch.destroy(err)
+    this.created.clear()
   }
 }
 
 class Channel {
-  constructor (state, dk) {
+  constructor (state, stream, dk) {
     this.key = null
     this.discoveryKey = dk
     this.localId = -1
     this.remoteId = -1
     this.remoteCapability = null
     this.handlers = null
-    this.destroyed = false
     this.state = state
+    this.stream = stream
   }
 
   get opened () {
     return this.localId > -1
+  }
+
+  get closed () {
+    return this.localId === -1
   }
 
   get remoteOpened () {
@@ -199,9 +202,8 @@ class Channel {
     this.state.close(this.localId, {})
   }
 
-  destroy () {
-    if (this.destroyed) return
-    this.destroyed = true
+  destroy (err) {
+    this.stream.destroy(err)
   }
 }
 
@@ -245,14 +247,15 @@ module.exports = class ProtocolStream extends Duplex {
   }
 
   setTimeout (ms, ontimeout) {
+    this.state.ping()
   }
 
   get channelCount () {
-    return this.channelizer.channels.size
+    return this.channelizer.created.size
   }
 
   get channels () {
-    return this.channelizer.channels.values()
+    return this.channelizer.created.values()
   }
 
   open (key, handlers) {
