@@ -115,6 +115,11 @@ class Channelizer {
     if (ch && ch.handlers && ch.handlers.ondata) ch.handlers.ondata(message)
   }
 
+  onextension (channelId, id, buf) {
+    const ch = this.remote[channelId]
+    if (ch && ch.handlers && ch.handlers.onextension) ch.handlers.onextension(id, buf)
+  }
+
   onclose (channelId, message) {
     const ch = channelId < this.remote.length ? this.remote[channelId] : null
 
@@ -214,6 +219,10 @@ class Channel {
 
   data (message) {
     return this.state.data(this.localId, message)
+  }
+
+  extension (id, buf) {
+    return this.state.extension(this.localId, id, buf)
   }
 
   close () {
