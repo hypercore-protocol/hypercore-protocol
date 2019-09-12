@@ -63,9 +63,11 @@ class Channelizer {
     const ch = this.createChannel(message.discoveryKey)
     ch.remoteCapability = message.capability
     this.attachRemote(ch, channelId)
-    if (this.stream.handlers.onremoteopen) {
-      if (ch.localId === -1) this.stream.handlers.onremoteopen(ch.discoveryKey)
+    if (ch.localId === -1) {
+      if (this.stream.handlers.onremoteopen) this.stream.handlers.onremoteopen(ch.discoveryKey)
       this.stream.emit('remoteopen', ch.discoveryKey)
+    } else {
+      this.stream.emit('duplex-channel', ch)
     }
     if (ch.handlers && ch.handlers.onopen) ch.handlers.onopen()
   }
@@ -369,6 +371,8 @@ module.exports = class ProtocolStream extends Duplex {
     }
 
     if (handlers) ch.handlers = handlers
+
+    if (ch.remoteId > -1) this.emit('duplex-channel', ch)
 
     return ch
   }
