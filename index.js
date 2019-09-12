@@ -2,6 +2,7 @@ const SHP = require('simple-hypercore-protocol')
 const crypto = require('hypercore-crypto')
 const timeout = require('timeout-refresh')
 const inspect = require('inspect-custom-symbol')
+const Nanoguard = require('nanoguard')
 const pretty = require('pretty-hash')
 const { Duplex } = require('streamx')
 
@@ -235,8 +236,7 @@ module.exports = class ProtocolStream extends Duplex {
     this.state = new SHP(initator, this.channelizer)
     this.timeout = null
     this.keepAlive = null
-    this.autoSeal = handlers.autoSeal !== false
-    this.sealed = false
+    this.prefinalize = new Nanoguard()
     this.bytesSent = 0
     this.bytesReceived = 0
 
@@ -260,9 +260,9 @@ module.exports = class ProtocolStream extends Duplex {
       indent + '  remotePublicKey: ' + opts.stylize((this.remotePublicKey && pretty(this.remotePublicKey)), 'string') + '\n' +
       indent + '  channelCount: ' + opts.stylize(this.channelCount, 'number') + '\n' +
       indent + '  destroyed: ' + opts.stylize(this.destroyed, 'boolean') + '\n' +
-      indent + '  sealed: ' + opts.stylize(this.sealed, 'boolean') + '\n' +
-      indent + '  bytesSent: ' + opts.stylize(this.bytesSent, 'number') + '\n' + 
-      indent + '  bytesReceived: ' + opts.stylize(this.bytesReceived, 'number') + '\n' + 
+      indent + '  prefinalized: ' + opts.stylize(!this.prefinalize.waiting, 'boolean') + '\n' +
+      indent + '  bytesSent: ' + opts.stylize(this.bytesSent, 'number') + '\n' +
+      indent + '  bytesReceived: ' + opts.stylize(this.bytesReceived, 'number') + '\n' +
       indent + ')'
   }
 
@@ -292,18 +292,15 @@ module.exports = class ProtocolStream extends Duplex {
     this.timeout = null
     this.keepAlive.destroy()
     this.keepAlive = null
+    this.prefinalize.destroy()
   }
 
   _prefinalize () {
-    if (this.destroyed) return
-    if (this.channelCount) return
-    if (!this.autoSeal && !this.sealed) return
-    this.finalize()
-  }
-
-  seal () {
-    this.sealed = true
-    this._prefinalize()
+    this.prefinalize.ready(() => {
+      if (this.destroyed) return
+      if (this.channelCount) return
+      this.finalize()
+    })
   }
 
   remoteVerified (key) {

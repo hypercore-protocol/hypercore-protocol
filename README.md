@@ -48,7 +48,6 @@ Options include:
 ``` js
 {
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
-  autoSeal: true, // set to false to disable an automatic call to stream.seal() when the last channel has closed
   timeout: 20000, // stream timeout. set to 0 or false to disable.
   keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
   onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
@@ -76,12 +75,11 @@ Set a stream timeout.
 Send a keep alive ping every ms, if no other message has been sent.
 This is enabled per default every timeout / 2 ms unless you disable timeout handling in the constructor.
 
-#### `stream.seal()`
+#### `stream.prefinalize`
 
-Calling this tells the replication stream that no other channels are gonna be opened.
-This allows the stream to `end` itself when all current channels are done.
-Per default the stream auto seals itself, when the last open channel is closed. To disable
-that set `autoSeal: false` in the constructor and make sure to call this method when it should be sealed.
+A [nanoguard](https://github.com/mafintosh/nanoguard) instance that is used to guard the final closing of the stream.
+Internally this guard is ready'ed before the stream checks if all channels have been closed and the stream is finalised.
+Call wait/continue on this guard if need asynchrously add more channels and don't want to stream to finalise underneath you.
 
 #### `stream.remotePublicKey`
 
@@ -113,7 +111,7 @@ Destroy the stream. Closes all feeds as well.
 #### `stream.finalize()`
 
 Gracefully end the stream. Closes all feeds as well.
-This is automatically called when the stream has been sealed and all active channels are closed.
+This is automatically called after the prefinalise guard and all channels have been closed.
 
 #### `feed.options(message)`
 
