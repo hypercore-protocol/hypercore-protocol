@@ -238,13 +238,13 @@ class Channel {
 }
 
 module.exports = class ProtocolStream extends Duplex {
-  constructor (initator, handlers = {}) {
+  constructor (initiator, handlers = {}) {
     super()
 
-    this.initator = initator
+    this.initiator = initiator
     this.handlers = handlers
     this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair)
-    this.state = new SHP(initator, this.channelizer)
+    this.state = new SHP(initiator, this.channelizer)
     this.timeout = null
     this.keepAlive = null
     this.prefinalize = new Nanoguard()
@@ -275,6 +275,10 @@ module.exports = class ProtocolStream extends Duplex {
       indent + '  bytesSent: ' + opts.stylize(this.bytesSent, 'number') + '\n' +
       indent + '  bytesReceived: ' + opts.stylize(this.bytesReceived, 'number') + '\n' +
       indent + ')'
+  }
+
+  static isProtocolStream (s) {
+    return !!(s && typeof s.initiator === 'boolean' && typeof s.pipe === 'function' && s.state)
   }
 
   get publicKey () {
