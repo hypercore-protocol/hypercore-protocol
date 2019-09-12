@@ -367,7 +367,7 @@ module.exports = class ProtocolStream extends Duplex {
     if (ch.key === null) {
       ch.key = key
       this.channelizer.attachLocal(ch)
-      this.state.open(ch.local, { key, discoveryKey })
+      this.state.open(ch.localId, { key, discoveryKey })
     }
 
     if (handlers) ch.handlers = handlers
