@@ -187,13 +187,13 @@ Send a `data` message. [See the protobuf schema for more info on this messsage](
 
 Called when a `data` message has been received.
 
-#### `feed.extension(name, buffer)`
+#### `feed.extension(id, buffer)`
 
-Send an `extension` message. `name` must be in the `extensions` list sent in a previous `options` message for this channel.
+Send an `extension` message. `id` should be the index an extension name in the `extensions` list sent in a previous `options` message for this channel.
 
-#### `feed.handlers.onextension(name, buffer)`
+#### `feed.handlers.onextension(id, buffer)`
 
-Called when an `extension` message has been received.
+Called when an `extension` message has been received. `id` is the index of an extension name received in an extension list in a previous `options` message for this channel.
 
 #### `feed.close()`
 
