@@ -94,6 +94,14 @@ Your public key.
 Returns true if the remote sent a valid capability for the key when they opened the channel.
 Use this in `ondiscoverykey` to check that the remote has the key corresponding to the discovery key.
 
+#### `const bool = Protocol.isProtocolStream(stream)`
+
+Static method to check if an object is a hypercore protocol stream.
+
+#### `const keyPair = Protocol.keyPair()`
+
+Static method to generate an static authentication key pair.
+
 #### `const channel = stream.open(key, handlers)`
 
 Signal the other end that you want to share a hypercore feed.

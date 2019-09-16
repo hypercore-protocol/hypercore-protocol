@@ -282,6 +282,10 @@ module.exports = class ProtocolStream extends Duplex {
     return !!(s && typeof s.initiator === 'boolean' && typeof s.pipe === 'function' && s.state)
   }
 
+  static keyPair () {
+    return SHP.keyPair()
+  }
+
   get publicKey () {
     return this.state.publicKey
   }
