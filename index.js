@@ -64,8 +64,8 @@ class Channelizer {
     ch.remoteCapability = message.capability
     this.attachRemote(ch, channelId)
     if (ch.localId === -1) {
-      if (this.stream.handlers.onremoteopen) this.stream.handlers.onremoteopen(ch.discoveryKey)
-      this.stream.emit('remoteopen', ch.discoveryKey)
+      if (this.stream.handlers.ondiscoverykey) this.stream.handlers.ondiscoverykey(ch.discoveryKey)
+      this.stream.emit('discovery-key', ch.discoveryKey)
     } else {
       this.stream.emit('duplex-channel', ch)
     }
@@ -269,6 +269,7 @@ module.exports = class ProtocolStream extends Duplex {
     return 'HypercoreProtocolStream(\n' +
       indent + '  publicKey: ' + opts.stylize((this.publicKey && pretty(this.publicKey)), 'string') + '\n' +
       indent + '  remotePublicKey: ' + opts.stylize((this.remotePublicKey && pretty(this.remotePublicKey)), 'string') + '\n' +
+      indent + '  initiator: ' + opts.stylize(this.initiator, 'boolean') + '\n' +
       indent + '  channelCount: ' + opts.stylize(this.channelCount, 'number') + '\n' +
       indent + '  destroyed: ' + opts.stylize(this.destroyed, 'boolean') + '\n' +
       indent + '  prefinalized: ' + opts.stylize(!this.prefinalize.waiting, 'boolean') + '\n' +
@@ -303,14 +304,19 @@ module.exports = class ProtocolStream extends Duplex {
   }
 
   _predestroy () {
-    this.timeout.destroy()
-    this.timeout = null
-    this.keepAlive.destroy()
-    this.keepAlive = null
+    if (this.timeout !== null) {
+      this.timeout.destroy()
+      this.timeout = null
+    }
+    if (this.keepAlive !== null) {
+      this.keepAlive.destroy()
+      this.keepAlive = null
+    }
     this.prefinalize.destroy()
   }
 
   _prefinalize () {
+    this.emit('prefinalize')
     this.prefinalize.ready(() => {
       if (this.destroyed) return
       if (this.channelCount) return

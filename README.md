@@ -52,14 +52,14 @@ Options include:
   keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
   onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
   onhandshake () { }, // function called when the stream handshake has finished
-  onremoteopen (discoveryKey) { } // function called when the remote stream opens a feed you have not
+  ondiscoverykey (discoveryKey) { } // function called when the remote stream opens a feed you have not
 }
 ```
 
-#### `stream.on('remoteopen', discoveryKey)`
+#### `stream.on('discovery-key', discoveryKey)`
 
 Emitted when the remote opens a feed you have not opened.
-Also calls `stream.handlers.onremoteopen(discoveryKey)`
+Also calls `stream.handlers.ondiscoverykey(discoveryKey)`
 
 #### `stream.on('timeout')`
 
@@ -92,7 +92,7 @@ Your public key.
 #### `const bool = stream.remoteVerified(key)`
 
 Returns true if the remote sent a valid capability for the key when they opened the channel.
-Use this in `onremoteopen` to check that the remote has the key corresponding to the discovery key.
+Use this in `ondiscoverykey` to check that the remote has the key corresponding to the discovery key.
 
 #### `const channel = stream.open(key, handlers)`
 
