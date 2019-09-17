@@ -8,27 +8,31 @@ npm install hypercore-protocol
 
 [![build status](https://travis-ci.org/mafintosh/hypercore-protocol.svg?branch=master)](https://travis-ci.org/mafintosh/hypercore-protocol)
 
+For detailed info on the messages sent on each channel see [simple-hypercore-protocol](https://github.com/mafintosh/simple-hypercore-protocol)
+
+Note that the latest version of this is Hypercore Wire Protocol 7, which is not compatible with earlier versions.
+
 ## Usage
 
 ``` js
-var protocol = require('hypercore-protocol')
+const Protocol = require('hypercore-protocol')
 
 // create two streams with hypercore protocol
-var streamA = protocol({ id: 'a' })
-var streamB = protocol({ id: 'b' })
+const streamA = new Protocol(true) // true indicates this is the initiator
+const streamB = new Protocol(false) // false indicates this is not the initiator
 
 // open two feeds specified by a 32 byte key
-var key = Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef')
-var feed = streamA.feed(key)
-var remoteFeed = streamB.feed(key)
+const key = Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef')
+const feed = streamA.open(key)
+const remoteFeed = streamB.open(key, {
+  // listen for data in remote feed
+  ondata (message) {
+    console.log(message.value.toString())
+  }
+})
 
 // add data to feed
 feed.data({ index: 1, value: '{ block: 42 }'})
-
-// listen data in remoteFeed
-remoteFeed.on('data', function (message) {
-  console.log(message.value.toString())
-})
 
 streamA.pipe(streamB).pipe(streamA)
 ```
@@ -37,7 +41,7 @@ streamA.pipe(streamB).pipe(streamA)
 
 ## API
 
-#### `var stream = protocol([options])`
+#### `const stream = new Protocol(initiator, [options])`
 
 Create a new protocol duplex stream.
 
@@ -45,40 +49,70 @@ Options include:
 
 ``` js
 {
-  id: optionalPeerId, // you can use this to detect if you connect to yourself
-  live: keepStreamOpen, // signal to the other peer that you want to keep this stream open forever
-  ack: false, // Explicitly ask a peer to acknowledge each received block
-  userData: opaqueUserData // include user data that you can retrieve on handshake
   encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
-  timeout: 5000, // stream timeout. set to 0 or false to disable.
-  extensions: [], // names of extensions to use for replication. Must be sorted alphanumerically for handshaking to work
+  timeout: 20000, // stream timeout. set to 0 or false to disable.
+  keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
+  onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
+  onhandshake () { }, // function called when the stream handshake has finished
+  ondiscoverykey (discoveryKey) { } // function called when the remote stream opens a feed you have not
 }
 ```
 
-If you don't specify a peer id a random 32 byte will be used.
-You can access the peer id using `p.id` and the remote peer id using `p.remoteId`.
+#### `stream.on('discovery-key', discoveryKey)`
 
-#### `var feed = stream.feed(key)`
+Emitted when the remote opens a feed you have not opened.
+Also calls `stream.handlers.ondiscoverykey(discoveryKey)`
+
+#### `stream.on('timeout')`
+
+Emitted when the stream times out.
+Per default a timeout triggers a destruction of the stream, unless you disable timeout handling in the constructor.
+
+#### `stream.setTimeout(ms, ontimeout)`
+
+Set a stream timeout.
+
+#### `stream.setKeepAlive(ms)`
+
+Send a keep alive ping every ms, if no other message has been sent.
+This is enabled per default every timeout / 2 ms unless you disable timeout handling in the constructor.
+
+#### `stream.prefinalize`
+
+A [nanoguard](https://github.com/mafintosh/nanoguard) instance that is used to guard the final closing of the stream.
+Internally this guard is ready'ed before the stream checks if all channels have been closed and the stream is finalised.
+Call wait/continue on this guard if need asynchrously add more channels and don't want to stream to finalise underneath you.
+
+#### `stream.remotePublicKey`
+
+The remotes public key.
+
+#### `stream.publicKey`
+
+Your public key.
+
+#### `const bool = stream.remoteVerified(key)`
+
+Returns true if the remote sent a valid capability for the key when they opened the channel.
+Use this in `ondiscoverykey` to check that the remote has the key corresponding to the discovery key.
+
+#### `const bool = Protocol.isProtocolStream(stream)`
+
+Static method to check if an object is a hypercore protocol stream.
+
+#### `const keyPair = Protocol.keyPair()`
+
+Static method to generate an static authentication key pair.
+
+#### `const channel = stream.open(key, handlers)`
 
 Signal the other end that you want to share a hypercore feed.
 
-You can use the same stream to share more than one BUT the first feed shared
-should be the same one. The key of the first feed is also used to encrypt the stream using [libsodium](https://github.com/mafintosh/sodium-native#crypto_stream_xorcipher-message-nonce-key).
+The feed key will be hashed and sent as the "discovery key" which protects the feed key from being learned by a remote peer who does not already possess it. Also includes a cryptographic proof that the local possesses the feed key, which can be implicitly verified using the above `remoteVerified` api.
 
-#### `var bool = stream.has(key)`
+[See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L7)
 
-Returns true if the stream already has open a channel open for the given key and false if not.
-
-#### `stream.on('handshake')`
-
-Emitted when a protocol handshake has been received. Afterwards you can check `.remoteId` to get the remote peer id, `.remoteLive` to get its live status, or `.remoteUserData` to get its user data.
-
-#### `stream.on('feed', discoveryKey)`
-
-Emitted when a remote is sharing a feed. `discoveryKey` is the hypercore discovery key of the feed they want to share.
-
-If you are sharing multiple hypercores on the same port you can use this event to wait for the remote peer to indicate which hypercore
-they are interested in.
+The `handlers` is an object of functions for handling incoming messages and is described below.
 
 #### `stream.destroy([error])`
 
@@ -87,86 +121,97 @@ Destroy the stream. Closes all feeds as well.
 #### `stream.finalize()`
 
 Gracefully end the stream. Closes all feeds as well.
+This is automatically called after the prefinalise guard and all channels have been closed.
 
-#### `feed.info(message)`
+#### `feed.options(message)`
 
-Send an `info` message. See the [schema.proto](schema.proto) file for more information.
+Send an `options` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L13)
 
-#### `feed.on('info', message)`
+#### `feed.handlers.onoptions(message)`
 
-Emitted when an `info` message has been received.
+Called when a options message has been received.
+
+#### `feed.status(message)`
+
+Send an `status` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L20)
+
+#### `feed.handlers.onstatus(message)`
+
+Called when a status message has been received.
 
 #### `feed.have(message)`
 
-Send a `have` message. See the [schema.proto](schema.proto) file for more information.
+Send a `have` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L26)
 
-#### `feed.on('have', message)`
+#### `feed.handlers.onhave(message)`
 
-Emitted when a `have` message has been received.
+Called when a `have` message has been received.
 
 #### `feed.unhave(message)`
 
-Send a `unhave` message. See the [schema.proto](schema.proto) file for more information.
+Send a `unhave` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L34)
 
-#### `feed.on('unhave', message)`
 
-Emitted when a `unhave` message has been received.
+#### `feed.handlers.onunhave(message)`
+
+Called when a `unhave` message has been received.
 
 #### `feed.want(want)`
 
-Send a `want` message. See the [schema.proto](schema.proto) file for more information.
+Send a `want` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L40)
 
-#### `feed.on('want', want)`
+#### `feed.handlers.onwant(want)`
 
-Emitted when a `want` message has been received.
+Called when a `want` message has been received.
 
 #### `feed.unwant(unwant)`
 
-Send a `unwant` message. See the [schema.proto](schema.proto) file for more information.
+Send a `unwant` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L46)
 
-#### `feed.on('unwant', unwant)`
+#### `feed.handlers.onunwant(unwant)`
 
-Emitted when a `unwant` message has been received.
+Called when a `unwant` message has been received.
 
 #### `feed.request(request)`
 
-Send a `request` message. See the [schema.proto](schema.proto) file for more information.
+Send a `request` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L52)
 
-#### `feed.on('request', request)`
 
-Emitted when a `request` message has been received.
+#### `feed.handlers.onrequest(request)`
+
+Called when a `request` message has been received.
 
 #### `feed.cancel(cancel)`
 
-Send a `cancel` message. See the [schema.proto](schema.proto) file for more information.
+Send a `cancel` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L60)
 
-#### `feed.on('cancel', cancel)`
+#### `feed.handlers.oncancel(cancel)`
 
-Emitted when a `cancel` message has been received.
+Called when a `cancel` message has been received.
 
 #### `feed.data(data)`
 
-Send a `data` message. See the [schema.proto](schema.proto) file for more information.
+Send a `data` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L67)
 
-#### `feed.on('data', data)`
+#### `feed.handlers.ondata(data)`
 
-Emitted when a `data` message has been received.
+Called when a `data` message has been received.
 
-#### `feed.extension(name, message)`
+#### `feed.extension(id, buffer)`
 
-Send an `extension` message. `name` must be in `extensions` list. See the [schema.proto](schema.proto) file for more information.
+Send an `extension` message. `id` should be the index an extension name in the `extensions` list sent in a previous `options` message for this channel.
 
-#### `feed.on('extension', name, message)`
+#### `feed.handlers.onextension(id, buffer)`
 
-Emitted when an `extension` message has been received.
-
-#### `feed.on('close')`
-
-Emitted when this feed has been closed. All feeds are automatically closed when the stream ends or is destroyed.
+Called when an `extension` message has been received. `id` is the index of an extension name received in an extension list in a previous `options` message for this channel.
 
 #### `feed.close()`
 
 Close this feed. You only need to call this if you are sharing a lot of feeds and want to garbage collect some old unused ones.
+
+#### `feed.handlers.onclose()`
+
+Called when this feed has been closed. All feeds are automatically closed when the stream ends or is destroyed.
 
 #### `feed.destroy(err)`
 
@@ -174,7 +219,13 @@ An alias to `stream.destroy`.
 
 ## Wire protocol
 
-The hypercore protocol uses a basic varint length prefixed format to send messages over the wire.
+The hypercore protocol consists of two phases.
+A handshake phase and a message exchange phage.
+
+For the handshake Noise is used with the XX pattern. Each Noise message is sent with varint framing.
+After the handshake a message exchange phased is started.
+
+This uses a basic varint length prefixed format to send messages over the wire.
 
 All messages contains a header indicating the type and feed id, and a protobuf encoded payload.
 

@@ -4,24 +4,20 @@
   "description": "Stream that implements the hypercore protocol",
   "main": "index.js",
   "dependencies": {
-    "buffer-alloc-unsafe": "^1.0.0",
-    "buffer-from": "^1.0.0",
-    "inherits": "^2.0.3",
-    "protocol-buffers-encodings": "^1.1.0",
-    "readable-stream": "^2.2.6",
-    "sodium-universal": "^2.0.0",
-    "sorted-indexof": "^1.0.0",
-    "varint": "^5.0.0"
+    "hypercore-crypto": "^1.0.0",
+    "inspect-custom-symbol": "^1.1.0",
+    "nanoguard": "^1.2.1",
+    "pretty-hash": "^1.0.1",
+    "simple-hypercore-protocol": "^1.1.2",
+    "streamx": "^2.1.0",
+    "timeout-refresh": "^1.0.0"
   },
   "devDependencies": {
-    "choppa": "^1.0.2",
-    "protocol-buffers": "^4.0.2",
-    "standard": "^9.0.1",
-    "tape": "^4.6.3"
+    "standard": "^14.1.0",
+    "tape": "^4.11.0"
   },
   "scripts": {
-    "test": "standard && tape test.js",
-    "protobuf": "protocol-buffers schema.proto -o messages.js"
+    "test": "standard && tape test.js"
   },
   "repository": {
     "type": "git",
