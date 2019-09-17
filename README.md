@@ -10,6 +10,8 @@ npm install hypercore-protocol
 
 For detailed info on the messages sent on each channel see [simple-hypercore-protocol](https://github.com/mafintosh/simple-hypercore-protocol)
 
+Note that the latest version of this is Hypercore Wire Protocol 7, which is not compatible with earlier versions.
+
 ## Usage
 
 ``` js
