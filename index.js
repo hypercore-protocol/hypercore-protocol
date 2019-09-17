@@ -67,6 +67,13 @@ class Channelizer {
       if (this.stream.handlers.ondiscoverykey) this.stream.handlers.ondiscoverykey(ch.discoveryKey)
       this.stream.emit('discovery-key', ch.discoveryKey)
     } else {
+      if (!ch.remoteVerified) {
+        // We are leaking metadata here that the remote cap was bad which means the remote prob can figure
+        // out that we indeed had the key. Since we were the one to initialise the channel that's ok, as
+        // that already kinda leaks that.
+        this.stream.destroy(new Error('Invalid remote channel capability'))
+        return
+      }
       this.stream.emit('duplex-channel', ch)
     }
     if (ch.handlers && ch.handlers.onopen) ch.handlers.onopen()
@@ -185,6 +192,13 @@ class Channel {
 
   get remoteOpened () {
     return this.remoteId > -1
+  }
+
+  get remoteVerified () {
+    return this.localId > -1 &&
+      this.remoteId > -1 &&
+      !!this.remoteCapability &&
+      this.remoteCapability.equals(this.state.remoteCapability(this.key))
   }
 
   options (message) {
