@@ -328,6 +328,11 @@ module.exports = class ProtocolStream extends Duplex {
     })
   }
 
+  remoteOpened (key) {
+    const ch = this.channelizer.getChannel(crypto.discoveryKey(key))
+    return !!(ch && ch.remoteId > -1)
+  }
+
   remoteVerified (key) {
     const ch = this.channelizer.getChannel(crypto.discoveryKey(key))
     return !!ch && !!ch.remoteCapability && ch.remoteCapability.equals(this.state.remoteCapability(key))
