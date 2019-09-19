@@ -410,12 +410,15 @@ module.exports = class ProtocolStream extends Duplex {
     return ch
   }
 
-  close (key) {
-    const discoveryKey = crypto.discoveryKey(key)
+  close (discoveryKey) {
     const ch = this.channelizer.getChannel(discoveryKey)
 
-    if (ch) ch.close()
-    else this.state.close(this.channelizer.allocLocal(), { discoveryKey })
+    if (ch && ch.localId > -1) {
+      ch.close()
+      return
+    }
+
+    this.state.close(this.channelizer.allocLocal(), { discoveryKey })
   }
 
   finalize () {

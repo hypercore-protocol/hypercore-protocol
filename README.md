@@ -114,6 +114,11 @@ The feed key will be hashed and sent as the "discovery key" which protects the f
 
 The `handlers` is an object of functions for handling incoming messages and is described below.
 
+#### `stream.close(discoveryKey)`
+
+You can call this method to signal to the other side that you do not have the key
+corresponding to the discoveryKey. Normally you would use this together with the `ondiscoverykey` hook.
+
 #### `stream.destroy([error])`
 
 Destroy the stream. Closes all feeds as well.

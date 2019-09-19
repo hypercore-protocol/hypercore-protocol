@@ -427,3 +427,21 @@ tape('feed channel ids are set up correctly', function (t) {
     t.end()
   })
 })
+
+tape('can close by discovery key', function (t) {
+  const a = new Protocol(true)
+  const b = new Protocol(false, {
+    ondiscoverykey (discoveryKey) {
+      b.close(discoveryKey)
+    }
+  })
+
+  a.open(KEY, {
+    onclose () {
+      t.pass('channel closed')
+      t.end()
+    }
+  })
+
+  a.pipe(b).pipe(a)
+})
