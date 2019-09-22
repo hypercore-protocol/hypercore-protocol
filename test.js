@@ -429,9 +429,12 @@ tape('feed channel ids are set up correctly', function (t) {
 })
 
 tape('can close by discovery key', function (t) {
+  t.plan(3)
+
   const a = new Protocol(true)
   const b = new Protocol(false, {
     ondiscoverykey (discoveryKey) {
+      t.pass('triggered ondiscoverykey')
       b.close(discoveryKey)
     }
   })
@@ -439,9 +442,11 @@ tape('can close by discovery key', function (t) {
   a.open(KEY, {
     onclose () {
       t.pass('channel closed')
-      t.end()
     }
   })
 
-  a.pipe(b).pipe(a)
+  a.pipe(b).pipe(a).on('end', function () {
+    t.pass('stream ended')
+    t.end()
+  })
 })
