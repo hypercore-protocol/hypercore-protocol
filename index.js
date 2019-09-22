@@ -130,24 +130,26 @@ class Channelizer {
   }
 
   onclose (channelId, message) {
-    const ch = channelId < this.remote.length ? this.remote[channelId] : null
+    let ch = channelId < this.remote.length ? this.remote[channelId] : null
 
     if (ch) {
       this.remote[channelId] = null
-      if (ch.handlers && ch.handlers.onclose) ch.handlers.onclose()
     } else if (message.discoveryKey) {
-      const local = this.getChannel(message.discoveryKey)
-      if (local && local.handlers && local.handlers.onclose) local.handlers.onclose()
+      ch = this.getChannel(message.discoveryKey)
     }
 
-    if (ch && ch.localId > -1) {
+    if (!ch) return
+
+    if (ch.handlers && ch.handlers.onclose) {
+      ch.handlers.onclose()
+    }
+
+    if (ch.localId > -1) {
       this.local[ch.localId] = null
     }
 
-    if (ch) {
-      this.created.delete(ch.discoveryKey.toString('hex'))
-      this.stream._prefinalize()
-    }
+    this.created.delete(ch.discoveryKey.toString('hex'))
+    this.stream._prefinalize()
   }
 
   // called by the state machine
