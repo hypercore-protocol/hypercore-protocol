@@ -54,7 +54,8 @@ Options include:
   keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
   onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
   onhandshake () { }, // function called when the stream handshake has finished
-  ondiscoverykey (discoveryKey) { } // function called when the remote stream opens a feed you have not
+  ondiscoverykey (discoveryKey) { }, // function called when the remote stream opens a feed you have not
+  onchannelclose (discoveryKey, publicKey) { } // function called when a feed-channel closes
 }
 ```
 
