@@ -450,3 +450,35 @@ tape('can close by discovery key', function (t) {
     t.end()
   })
 })
+
+tape('a live stream does not close', function (t) {
+  const a = new Protocol(true)
+  const b = new Protocol(false, {
+    ondiscoverykey (discoveryKey) {
+      b.close(discoveryKey)
+    }
+  })
+  const c = new Protocol(true, { live: true })
+  const d = new Protocol(false, {
+    live: true,
+    ondiscoverykey (discoveryKey) {
+      d.close(discoveryKey)
+      setTimeout(() => {
+        t.end()
+      }, 500)
+    }
+  })
+
+  a.open(KEY)
+  c.open(KEY)
+
+  a.once('close', () => {
+    t.pass('non-live closed after all channels closed')
+  })
+  d.once('close', () => {
+    t.fail('live should not have closed')
+  })
+
+  a.pipe(b).pipe(a)
+  c.pipe(d).pipe(c)
+})
