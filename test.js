@@ -482,3 +482,22 @@ tape('a live stream does not close', function (t) {
   a.pipe(b).pipe(a)
   c.pipe(d).pipe(c)
 })
+
+tape('immediately reopening a bad channel still closes the stream', function (t) {
+  const a = new Protocol(true)
+  const b = new Protocol(false, {
+    ondiscoverykey (discoveryKey) {
+      b.close(discoveryKey)
+    }
+  })
+
+  a.open(KEY)
+  a.open(KEY)
+
+  a.pipe(b).pipe(a)
+
+  a.once('close', () => {
+    t.pass('channel closed')
+    t.end()
+  })
+})
