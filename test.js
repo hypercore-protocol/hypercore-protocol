@@ -487,3 +487,54 @@ tape('onchannelclose handler', function (t) {
     t.pass('stream ended')
   })
 })
+
+tape('a live stream does not close', function (t) {
+  const a = new Protocol(true)
+  const b = new Protocol(false, {
+    ondiscoverykey (discoveryKey) {
+      b.close(discoveryKey)
+    }
+  })
+  const c = new Protocol(true, { live: true })
+  const d = new Protocol(false, {
+    live: true,
+    ondiscoverykey (discoveryKey) {
+      d.close(discoveryKey)
+      setTimeout(() => {
+        t.end()
+      }, 500)
+    }
+  })
+
+  a.open(KEY)
+  c.open(KEY)
+
+  a.once('close', () => {
+    t.pass('non-live closed after all channels closed')
+  })
+  d.once('close', () => {
+    t.fail('live should not have closed')
+  })
+
+  a.pipe(b).pipe(a)
+  c.pipe(d).pipe(c)
+})
+
+tape('immediately reopening a bad channel still closes the stream', function (t) {
+  const a = new Protocol(true)
+  const b = new Protocol(false, {
+    ondiscoverykey (discoveryKey) {
+      b.close(discoveryKey)
+    }
+  })
+
+  a.open(KEY)
+  a.open(KEY)
+
+  a.pipe(b).pipe(a)
+
+  a.once('close', () => {
+    t.pass('channel closed')
+    t.end()
+  })
+})
