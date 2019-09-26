@@ -451,6 +451,43 @@ tape('can close by discovery key', function (t) {
   })
 })
 
+tape('onchannelclose handler', function (t) {
+  t.plan(9)
+  let dk = null
+  let expectedCalls = 2
+  const a = new Protocol(true, {
+    onchannelclose (discoveryKey, key) {
+      t.pass('A triggered onchannelclose')
+      t.ok(discoveryKey.equals(dk), 'discoveryKey was passed')
+      t.ok(key, 'publicKey was passed')
+      if (!--expectedCalls) t.end()
+    }
+  })
+  const b = new Protocol(false, {
+    ondiscoverykey (discoveryKey) {
+      t.pass('triggered ondiscoverykey')
+      dk = discoveryKey
+      b.close(discoveryKey)
+    },
+    onchannelclose (discoveryKey, key) {
+      t.pass('B triggered onchannelclose')
+      t.ok(discoveryKey.equals(dk), 'discoveryKey always available')
+      t.equal(key, null, 'publicKey null when channel wasn\'t established on both ends')
+      if (!--expectedCalls) t.end()
+    }
+  })
+
+  a.open(KEY, {
+    onclose () {
+      t.pass('channel closed')
+    }
+  })
+
+  a.pipe(b).pipe(a).on('end', function () {
+    t.pass('stream ended')
+  })
+})
+
 tape('a live stream does not close', function (t) {
   const a = new Protocol(true)
   const b = new Protocol(false, {

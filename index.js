@@ -144,6 +144,10 @@ class Channelizer {
       ch.handlers.onclose()
     }
 
+    if (this.stream.handlers && this.stream.handlers.onchannelclose) {
+      this.stream.handlers.onchannelclose(ch.discoveryKey, ch.key)
+    }
+
     if (ch.localId > -1) {
       this.local[ch.localId] = null
     }
@@ -167,6 +171,10 @@ class Channelizer {
     for (const ch of this.created.values()) {
       ch.localId = ch.remoteId = -1
       if (ch.handlers && ch.handlers.onclose) ch.handlers.onclose()
+
+      if (this.stream.handlers && this.stream.handlers.onchannelclose) {
+        this.stream.handlers.onchannelclose(ch.discoveryKey, ch.key)
+      }
     }
     this.created.clear()
   }
