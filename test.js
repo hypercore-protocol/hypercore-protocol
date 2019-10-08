@@ -538,3 +538,28 @@ tape('immediately reopening a bad channel still closes the stream', function (t)
     t.end()
   })
 })
+
+tape('userData', function (t) {
+  t.plan(4)
+
+  const a = new Protocol(true, {
+    userData: {
+      type: 'a type',
+      value: Buffer.from('a value')
+    }
+  })
+
+  const b = new Protocol(false)
+
+  a.pipe(b).pipe(a)
+
+  a.on('handshake', function () {
+    t.same(a.userData, { type: 'a type', value: Buffer.from('a value') })
+    t.same(a.remoteUserData, null)
+  })
+
+  b.on('handshake', function () {
+    t.same(b.userData, null)
+    t.same(b.remoteUserData, { type: 'a type', value: Buffer.from('a value') })
+  })
+})

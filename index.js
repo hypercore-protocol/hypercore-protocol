@@ -7,13 +7,14 @@ const pretty = require('pretty-hash')
 const { Duplex } = require('streamx')
 
 class Channelizer {
-  constructor (stream, encrypted, keyPair) {
+  constructor (stream, encrypted, keyPair, userData) {
     this.stream = stream
     this.created = new Map()
     this.local = []
     this.remote = []
     this.encrypted = encrypted !== false
     this.keyPair = keyPair
+    this.userData = userData || null
   }
 
   allocLocal () {
@@ -57,6 +58,7 @@ class Channelizer {
 
   onhandshake () {
     if (this.stream.handlers && this.stream.handlers.onhandshake) this.stream.handlers.onhandshake()
+    this.stream.emit('handshake')
   }
 
   onopen (channelId, message) {
@@ -267,7 +269,7 @@ module.exports = class ProtocolStream extends Duplex {
 
     this.initiator = initiator
     this.handlers = handlers
-    this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair)
+    this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair, handlers.userData)
     this.state = new SHP(initiator, this.channelizer)
     this.live = !!handlers.live
     this.timeout = null
@@ -318,6 +320,14 @@ module.exports = class ProtocolStream extends Duplex {
 
   get remotePublicKey () {
     return this.state.remotePublicKey
+  }
+
+  get userData () {
+    return this.state.userData
+  }
+
+  get remoteUserData () {
+    return this.state.remoteUserData
   }
 
   _write (data, cb) {
