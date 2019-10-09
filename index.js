@@ -158,6 +158,11 @@ class Channelizer {
     this.stream._prefinalize()
   }
 
+  onmissing (bytes) {
+    if (this.stream._utp === null) return
+    this.stream._utp.setContentSize(bytes)
+  }
+
   // called by the state machine
   send (data) {
     if (this.stream.keepAlive !== null) this.stream.keepAlive.refresh()
@@ -278,7 +283,10 @@ module.exports = class ProtocolStream extends Duplex {
     this.bytesSent = 0
     this.bytesReceived = 0
 
+    this._utp = null
+
     this.once('finish', this.push.bind(this, null))
+    this.on('pipe', this._onpipe)
 
     if (handlers.timeout !== false && handlers.timeout !== 0) {
       const timeout = handlers.timeout || 20000
@@ -328,6 +336,10 @@ module.exports = class ProtocolStream extends Duplex {
 
   get remoteUserData () {
     return this.state.remoteUserData
+  }
+
+  _onpipe (dest) {
+    if (typeof dest.setContentSize === 'function') this._utp = dest
   }
 
   _write (data, cb) {
