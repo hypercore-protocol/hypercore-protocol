@@ -4,22 +4,33 @@ const timeout = require('timeout-refresh')
 const inspect = require('inspect-custom-symbol')
 const Nanoguard = require('nanoguard')
 const pretty = require('pretty-hash')
+const { Message } = require('message-pair')
 const { Duplex } = require('streamx')
 
+class StreamExtension extends Message {
+  send (message) {
+    const stream = this.pair.handlers
+    if (stream._changes !== this.pair.changes) {
+      stream._changes = this.pair.changes
+      stream.state.options(0, { extensions: this.pair.names() })
+    }
+    return stream.state.extension(0, this.id, this.encode(message))
+  }
+}
+
 class Channelizer {
-  constructor (stream, encrypted, keyPair, userData) {
+  constructor (stream, encrypted, keyPair) {
     this.stream = stream
     this.created = new Map()
-    this.local = []
-    this.remote = []
+    this.local = [null]
+    this.remote = [null]
     this.encrypted = encrypted !== false
     this.keyPair = keyPair
-    this.userData = userData || null
   }
 
   allocLocal () {
     const id = this.local.indexOf(null)
-    if (id > -1) return id
+    if (id > 0) return id
     this.local.push(null)
     return this.local.length - 1
   }
@@ -84,6 +95,7 @@ class Channelizer {
   onoptions (channelId, message) {
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onoptions) ch.handlers.onoptions(message)
+    else if (channelId === 0 && !ch) this.stream._updateExtensions(message.extensions)
   }
 
   onstatus (channelId, message) {
@@ -129,6 +141,7 @@ class Channelizer {
   onextension (channelId, id, buf) {
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onextension) ch.handlers.onextension(id, buf)
+    else if (channelId === 0 && !ch) this.stream.remoteExtensions.onmessage(id, buf)
   }
 
   onclose (channelId, message) {
@@ -274,7 +287,7 @@ module.exports = class ProtocolStream extends Duplex {
 
     this.initiator = initiator
     this.handlers = handlers
-    this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair, handlers.userData)
+    this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair)
     this.state = new SHP(initiator, this.channelizer)
     this.live = !!handlers.live
     this.timeout = null
@@ -282,8 +295,11 @@ module.exports = class ProtocolStream extends Duplex {
     this.prefinalize = new Nanoguard()
     this.bytesSent = 0
     this.bytesReceived = 0
+    this.extensions = StreamExtension.createMessagePair(this)
+    this.remoteExtensions = this.extensions.remote()
 
     this._utp = null
+    this._changes = 0
 
     this.once('finish', this.push.bind(this, null))
     this.on('pipe', this._onpipe)
@@ -293,6 +309,10 @@ module.exports = class ProtocolStream extends Duplex {
       this.setTimeout(timeout, () => this.destroy(new Error('ETIMEDOUT')))
       this.setKeepAlive(Math.ceil(timeout / 2))
     }
+  }
+
+  registerExtension (name, handlers) {
+    return this.extensions.add(name, handlers)
   }
 
   [inspect] (depth, opts) {
@@ -328,14 +348,6 @@ module.exports = class ProtocolStream extends Duplex {
 
   get remotePublicKey () {
     return this.state.remotePublicKey
-  }
-
-  get userData () {
-    return this.state.userData
-  }
-
-  get remoteUserData () {
-    return this.state.remoteUserData
   }
 
   _onpipe (dest) {
@@ -375,6 +387,12 @@ module.exports = class ProtocolStream extends Duplex {
       if (this.live) return
       this.finalize()
     })
+  }
+
+  _updateExtensions (names) {
+    this.remoteExtensions.update(names)
+    if (this.handlers.onextensions) this.handlers.onextensions(names)
+    this.emit('extensions', names)
   }
 
   remoteOpened (key) {

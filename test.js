@@ -539,27 +539,31 @@ tape('immediately reopening a bad channel still closes the stream', function (t)
   })
 })
 
-tape('userData', function (t) {
-  t.plan(4)
-
+tape('stream extension', function (t) {
   const a = new Protocol(true, {
-    userData: {
-      type: 'a type',
-      value: Buffer.from('a value')
+    onextensions (names) {
+      t.same(names, ['test', 'z'])
     }
   })
 
-  const b = new Protocol(false)
+  const b = new Protocol(false, {
+    onextensions (names) {
+      t.same(names, ['a', 'test'])
+    }
+  })
+
+  a.registerExtension('a')
+  a.registerExtension('test', {
+    encoding: 'json',
+    onmessage (message) {
+      t.same(message, { hello: 'world' })
+      t.end()
+    }
+  })
+
+  b.registerExtension('z')
+  const ext = b.registerExtension('test', { encoding: 'json' })
+  ext.send({ hello: 'world' })
 
   a.pipe(b).pipe(a)
-
-  a.on('handshake', function () {
-    t.same(a.userData, { type: 'a type', value: Buffer.from('a value') })
-    t.same(a.remoteUserData, null)
-  })
-
-  b.on('handshake', function () {
-    t.same(b.userData, null)
-    t.same(b.remoteUserData, { type: 'a type', value: Buffer.from('a value') })
-  })
 })
