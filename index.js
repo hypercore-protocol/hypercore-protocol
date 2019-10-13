@@ -4,15 +4,15 @@ const timeout = require('timeout-refresh')
 const inspect = require('inspect-custom-symbol')
 const Nanoguard = require('nanoguard')
 const pretty = require('pretty-hash')
-const { Message } = require('message-pair')
+const Message = require('abstract-extension')
 const { Duplex } = require('streamx')
 
 class StreamExtension extends Message {
   send (message) {
-    const stream = this.pair.handlers
-    if (stream._changes !== this.pair.changes) {
-      stream._changes = this.pair.changes
-      stream.state.options(0, { extensions: this.pair.names() })
+    const stream = this.local.handlers
+    if (stream._changes !== this.local.changes) {
+      stream._changes = this.local.changes
+      stream.state.options(0, { extensions: this.local.names() })
     }
     return stream.state.extension(0, this.id, this.encode(message))
   }
@@ -295,7 +295,7 @@ module.exports = class ProtocolStream extends Duplex {
     this.prefinalize = new Nanoguard()
     this.bytesSent = 0
     this.bytesReceived = 0
-    this.extensions = StreamExtension.createMessagePair(this)
+    this.extensions = StreamExtension.createLocal(this)
     this.remoteExtensions = this.extensions.remote()
 
     this._utp = null
