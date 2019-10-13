@@ -23,7 +23,7 @@ const streamB = new Protocol(false) // false indicates this is not the initiator
 
 // open two feeds specified by a 32 byte key
 const key = Buffer.from('deadbeefdeadbeefdeadbeefdeadbeef')
-const feed = streamA.open(key)
+const channel = streamA.open(key)
 const remoteFeed = streamB.open(key, {
   // listen for data in remote feed
   ondata (message) {
@@ -32,7 +32,7 @@ const remoteFeed = streamB.open(key, {
 })
 
 // add data to feed
-feed.data({ index: 1, value: '{ block: 42 }'})
+channel.data({ index: 1, value: '{ block: 42 }'})
 
 streamA.pipe(streamB).pipe(streamA)
 ```
@@ -54,7 +54,7 @@ Options include:
   keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
   onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
   onhandshake () { }, // function called when the stream handshake has finished
-  ondiscoverykey (discoveryKey) { }, // function called when the remote stream opens a feed you have not
+  ondiscoverykey (discoveryKey) { }, // function called when the remote stream opens a channel you have not
   onchannelclose (discoveryKey, publicKey) { } // function called when a feed-channel closes
 }
 ```
@@ -129,99 +129,120 @@ Destroy the stream. Closes all feeds as well.
 Gracefully end the stream. Closes all feeds as well.
 This is automatically called after the prefinalise guard and all channels have been closed.
 
-#### `feed.options(message)`
+#### `channel.options(message)`
 
 Send an `options` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L13)
 
-#### `feed.handlers.onoptions(message)`
+#### `channel.handlers.onoptions(message)`
 
 Called when a options message has been received.
 
-#### `feed.status(message)`
+#### `channel.status(message)`
 
 Send an `status` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L20)
 
-#### `feed.handlers.onstatus(message)`
+#### `channel.handlers.onstatus(message)`
 
 Called when a status message has been received.
 
-#### `feed.have(message)`
+#### `channel.have(message)`
 
 Send a `have` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L26)
 
-#### `feed.handlers.onhave(message)`
+#### `channel.handlers.onhave(message)`
 
 Called when a `have` message has been received.
 
-#### `feed.unhave(message)`
+#### `channel.unhave(message)`
 
 Send a `unhave` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L34)
 
 
-#### `feed.handlers.onunhave(message)`
+#### `channel.handlers.onunhave(message)`
 
 Called when a `unhave` message has been received.
 
-#### `feed.want(want)`
+#### `channel.want(want)`
 
 Send a `want` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L40)
 
-#### `feed.handlers.onwant(want)`
+#### `channel.handlers.onwant(want)`
 
 Called when a `want` message has been received.
 
-#### `feed.unwant(unwant)`
+#### `channel.unwant(unwant)`
 
 Send a `unwant` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L46)
 
-#### `feed.handlers.onunwant(unwant)`
+#### `channel.handlers.onunwant(unwant)`
 
 Called when a `unwant` message has been received.
 
-#### `feed.request(request)`
+#### `channel.request(request)`
 
 Send a `request` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L52)
 
 
-#### `feed.handlers.onrequest(request)`
+#### `channel.handlers.onrequest(request)`
 
 Called when a `request` message has been received.
 
-#### `feed.cancel(cancel)`
+#### `channel.cancel(cancel)`
 
 Send a `cancel` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L60)
 
-#### `feed.handlers.oncancel(cancel)`
+#### `channel.handlers.oncancel(cancel)`
 
 Called when a `cancel` message has been received.
 
-#### `feed.data(data)`
+#### `channel.data(data)`
 
 Send a `data` message. [See the protobuf schema for more info on this messsage](https://github.com/mafintosh/simple-hypercore-protocol/blob/master/schema.proto#L67)
 
-#### `feed.handlers.ondata(data)`
+#### `channel.handlers.ondata(data)`
 
 Called when a `data` message has been received.
 
-#### `feed.extension(id, buffer)`
+#### `channel.extension(id, buffer)`
 
 Send an `extension` message. `id` should be the index an extension name in the `extensions` list sent in a previous `options` message for this channel.
 
-#### `feed.handlers.onextension(id, buffer)`
+#### `channel.handlers.onextension(id, buffer)`
 
 Called when an `extension` message has been received. `id` is the index of an extension name received in an extension list in a previous `options` message for this channel.
 
-#### `feed.close()`
+#### `channel.close()`
 
-Close this feed. You only need to call this if you are sharing a lot of feeds and want to garbage collect some old unused ones.
+Close this channel. You only need to call this if you are sharing a lot of feeds and want to garbage collect some old unused ones.
 
-#### `feed.handlers.onclose()`
+#### `channel.handlers.onclose()`
 
 Called when this feed has been closed. All feeds are automatically closed when the stream ends or is destroyed.
 
-#### `feed.destroy(err)`
+#### `channel.destroy(err)`
 
 An alias to `stream.destroy`.
+
+## Stream message extensions
+
+You can also send custom messages over the stream unrelated to any channel or hypercore feed.
+You usually don't need this but can be useful if you are bootstrapping a specific protocol on top.
+
+#### `const ext = stream.registerExtension(name, handlers)`
+
+Register a new stream extension named `name`.
+
+* `handlers.onmessage(message)` is called when an unchanneled extension message is received for this extension.
+* `handlers.onerror(error)` in case there was an encoding error.
+* `handlers.encoding` can be set to `json`, `utf-8`, `binary` or any abstract encoding to automatically decode/encode messages.
+
+#### `ext.send(message)`
+
+Send an extension message.
+
+#### `ext.destroy()`
+
+Destroy this extension. Unregisters it from the stream as well.
 
 ## Wire protocol
 
