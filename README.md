@@ -101,7 +101,7 @@ Use this in `ondiscoverykey` to check that the remote has the key corresponding 
 
 Static method to check if an object is a hypercore protocol stream.
 
-#### `const keyPair = Protocol.keyPair()`
+#### `const keyPair = Protocol.keyPair([seed])`
 
 Static method to generate an static authentication key pair.
 
