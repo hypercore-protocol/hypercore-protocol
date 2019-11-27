@@ -6,6 +6,7 @@ const Nanoguard = require('nanoguard')
 const pretty = require('pretty-hash')
 const Message = require('abstract-extension')
 const { Duplex } = require('streamx')
+const debug = require('debug')('hypercore-protocol')
 
 class StreamExtension extends Message {
   send (message) {
@@ -68,11 +69,13 @@ class Channelizer {
   }
 
   onhandshake () {
+    debug('recv handshake')
     if (this.stream.handlers && this.stream.handlers.onhandshake) this.stream.handlers.onhandshake()
     this.stream.emit('handshake')
   }
 
   onopen (channelId, message) {
+    debug('recv open', channelId, message)
     const ch = this.createChannel(message.discoveryKey)
     ch.remoteCapability = message.capability
     this.attachRemote(ch, channelId)
@@ -93,58 +96,69 @@ class Channelizer {
   }
 
   onoptions (channelId, message) {
+    debug('recv options', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onoptions) ch.handlers.onoptions(message)
     else if (channelId === 0 && !ch) this.stream._updateExtensions(message.extensions)
   }
 
   onstatus (channelId, message) {
+    debug('recv status', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onstatus) ch.handlers.onstatus(message)
   }
 
   onhave (channelId, message) {
+    debug('recv have', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onhave) ch.handlers.onhave(message)
   }
 
   onunhave (channelId, message) {
+    debug('recv unhave', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onunhave) ch.handlers.onunhave(message)
   }
 
   onwant (channelId, message) {
+    debug('recv want', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onwant) ch.handlers.onwant(message)
   }
 
   onunwant (channelId, message) {
+    debug('recv unwant', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onunwant) ch.handlers.onunwant(message)
   }
 
   onrequest (channelId, message) {
+    debug('recv request', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onrequest) ch.handlers.onrequest(message)
   }
 
   oncancel (channelId, message) {
+    debug('recv cancel', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.oncancel) ch.handlers.oncancel(message)
   }
 
   ondata (channelId, message) {
+    debug('recv data', channelId, message)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.ondata) ch.handlers.ondata(message)
   }
 
   onextension (channelId, id, buf) {
+    debug('recv extension', channelId, id)
     const ch = this.remote[channelId]
     if (ch && ch.handlers && ch.handlers.onextension) ch.handlers.onextension(id, buf)
     else if (channelId === 0 && !ch) this.stream.remoteExtensions.onmessage(id, buf)
   }
 
   onclose (channelId, message) {
+    debug('recv close', channelId, message)
     let ch = channelId < this.remote.length ? this.remote[channelId] : null
 
     if (ch) {
@@ -232,46 +246,57 @@ class Channel {
   }
 
   options (message) {
+    debug('send options', message)
     return this.state.options(this.localId, message)
   }
 
   status (message) {
+    debug('send status', message)
     return this.state.status(this.localId, message)
   }
 
   have (message) {
+    debug('send have', message)
     return this.state.have(this.localId, message)
   }
 
   unhave (message) {
+    debug('send unhave', message)
     return this.state.unhave(this.localId, message)
   }
 
   want (message) {
+    debug('send want', message)
     return this.state.want(this.localId, message)
   }
 
   unwant (message) {
+    debug('send unwant', message)
     return this.state.unwant(this.localId, message)
   }
 
   request (message) {
+    debug('send request', message)
     return this.state.request(this.localId, message)
   }
 
   cancel (message) {
+    debug('send cancel', message)
     return this.state.cancel(this.localId, message)
   }
 
   data (message) {
+    debug('send data', message)
     return this.state.data(this.localId, message)
   }
 
   extension (id, buf) {
+    debug('send extension', id)
     return this.state.extension(this.localId, id, buf)
   }
 
   close () {
+    debug('send close')
     if (this.closed) return
     this.state.close(this.localId, {})
   }
