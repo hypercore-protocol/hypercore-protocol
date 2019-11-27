@@ -5,6 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "abstract-extension": "^3.0.1",
+    "debug": "^4.1.1",
     "hypercore-crypto": "^1.0.0",
     "inspect-custom-symbol": "^1.1.0",
     "nanoguard": "^1.2.1",
