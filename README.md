@@ -49,7 +49,7 @@ Options include:
 
 ``` js
 {
-  encrypt: true, // set to false to disable encryption if you are already piping through a encrypted stream
+  encrypted: true, // set to false to disable encryption if you are already piping through a encrypted stream
   timeout: 20000, // stream timeout. set to 0 or false to disable.
   keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
   onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
