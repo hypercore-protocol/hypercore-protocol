@@ -310,6 +310,8 @@ module.exports = class ProtocolStream extends Duplex {
   constructor (initiator, handlers = {}) {
     super()
 
+    if (typeof initiator !== 'boolean') throw new Error('Must specify initiator boolean in replication stream')
+
     this.initiator = initiator
     this.handlers = handlers
     this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair)
