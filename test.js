@@ -568,9 +568,9 @@ tape('stream extension', function (t) {
   a.pipe(b).pipe(a)
 })
 
-tape.only('disable noise', function (t) {
-  const a = new Protocol(true, { noise: false })
-  const b = new Protocol(false, { noise: false })
+tape('disable noise', function (t) {
+  const a = new Protocol(true, { noise: false, encrypted: false })
+  const b = new Protocol(false, { noise: false, encrypted: false })
 
   const local = a.open(KEY, {
     ondata (data) {

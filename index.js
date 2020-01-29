@@ -25,7 +25,7 @@ class Channelizer {
     this.created = new Map()
     this.local = [null]
     this.remote = [null]
-    this.noise = noise !== false
+    this.noise = !(noise === false && encrypted === false)
     this.encrypted = encrypted !== false
     this.keyPair = keyPair
   }
