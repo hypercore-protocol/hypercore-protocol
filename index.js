@@ -367,6 +367,10 @@ module.exports = class ProtocolStream extends Duplex {
     return SHP.keyPair(seed)
   }
 
+  get remoteAddress () {
+    return this._readableState.pipeTo && this._readableState.pipeTo.remoteAddress
+  }
+
   get publicKey () {
     return this.state.publicKey
   }
