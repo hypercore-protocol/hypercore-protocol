@@ -96,6 +96,10 @@ Your public key.
 
 The remote peers IP if piped over a TCP or UTP stream.
 
+#### `stream.remoteType`
+
+The remote peers connection type. Either 'tcp', 'utp', or 'unknown'.
+
 #### `const bool = stream.remoteVerified(key)`
 
 Returns true if the remote sent a valid capability for the key when they opened the channel.

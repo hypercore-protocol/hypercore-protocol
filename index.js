@@ -351,6 +351,8 @@ module.exports = class ProtocolStream extends Duplex {
     return 'HypercoreProtocolStream(\n' +
       indent + '  publicKey: ' + opts.stylize((this.publicKey && pretty(this.publicKey)), 'string') + '\n' +
       indent + '  remotePublicKey: ' + opts.stylize((this.remotePublicKey && pretty(this.remotePublicKey)), 'string') + '\n' +
+      indent + '  remoteAddress: ' + opts.stylize(this.remoteAddress, 'string') + '\n' +
+      indent + '  remoteType: ' + opts.stylize(this.remoteType, 'string') + '\n' +
       indent + '  live: ' + opts.stylize(this.live, 'boolean') + '\n' +
       indent + '  initiator: ' + opts.stylize(this.initiator, 'boolean') + '\n' +
       indent + '  channelCount: ' + opts.stylize(this.channelCount, 'number') + '\n' +
@@ -370,7 +372,18 @@ module.exports = class ProtocolStream extends Duplex {
   }
 
   get remoteAddress () {
-    return this._readableState.pipeTo && this._readableState.pipeTo.remoteAddress
+    const to = this._readableState.pipeTo
+    if (!to) return null
+    if (ProtocolStream.isProtocolStream(to)) return null
+    return to.remoteAddress
+  }
+
+  get remoteType () {
+    const to = this._readableState.pipeTo
+    if (!to) return null
+    if (to._utp) return 'utp'
+    if (to.remoteAddress) return 'tcp'
+    return 'unknown'
   }
 
   get publicKey () {
