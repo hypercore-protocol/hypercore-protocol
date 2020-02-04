@@ -50,7 +50,7 @@ Options include:
 ``` js
 {
   encrypted: true, // set to false to disable encryption if you are already piping through a encrypted stream
-  noise: true, // set to false to disable the NOISE handshake completely. This implies encrypted = false, and also disables the capability verification
+  noise: true, // set to false to disable the NOISE handshake completely. Requires encrypted = false, and also disables the capability verification
   timeout: 20000, // stream timeout. set to 0 or false to disable.
   keyPair: { publicKey, secretKey }, // use this keypair for the stream authentication
   onauthenticate (remotePublicKey, done) { }, // hook to verify the remotes public key
