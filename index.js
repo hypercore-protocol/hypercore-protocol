@@ -20,11 +20,12 @@ class StreamExtension extends Message {
 }
 
 class Channelizer {
-  constructor (stream, encrypted, keyPair) {
+  constructor (stream, { encrypted, noise, keyPair }) {
     this.stream = stream
     this.created = new Map()
     this.local = [null]
     this.remote = [null]
+    this.noise = !(noise === false && encrypted === false)
     this.encrypted = encrypted !== false
     this.keyPair = keyPair
   }
@@ -83,7 +84,7 @@ class Channelizer {
       if (this.stream.handlers.ondiscoverykey) this.stream.handlers.ondiscoverykey(ch.discoveryKey)
       this.stream.emit('discovery-key', ch.discoveryKey)
     } else {
-      if (!ch.remoteVerified) {
+      if (this.noise && !ch.remoteVerified) {
         // We are leaking metadata here that the remote cap was bad which means the remote prob can figure
         // out that we indeed had the key. Since we were the one to initialise the channel that's ok, as
         // that already kinda leaks that.
@@ -314,7 +315,11 @@ module.exports = class ProtocolStream extends Duplex {
 
     this.initiator = initiator
     this.handlers = handlers
-    this.channelizer = new Channelizer(this, handlers.encrypted, handlers.keyPair)
+    this.channelizer = new Channelizer(this, {
+      encrypted: handlers.encrypted,
+      noise: handlers.noise,
+      keyPair: handlers.keyPair
+    })
     this.state = new SHP(initiator, this.channelizer)
     this.live = !!handlers.live
     this.timeout = null

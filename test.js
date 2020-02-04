@@ -567,3 +567,39 @@ tape('stream extension', function (t) {
 
   a.pipe(b).pipe(a)
 })
+
+tape('disable noise', function (t) {
+  const a = new Protocol(true, { noise: false, encrypted: false })
+  const b = new Protocol(false, { noise: false, encrypted: false })
+
+  const local = a.open(KEY, {
+    ondata (data) {
+      t.same(data.index, 42)
+      t.same(data.value, Buffer.from('value'))
+      t.same(a.publicKey, null)
+      t.same(a.remotePublicKey, null)
+      t.same(b.publicKey, null)
+      t.same(b.remotePublicKey, null)
+      t.end()
+    }
+  })
+
+  const remote = b.open(KEY, {
+    onopen () {
+      t.pass('opened')
+    },
+    onrequest (request) {
+      t.same(request.index, 42)
+      remote.data({
+        index: request.index,
+        value: Buffer.from('value')
+      })
+    }
+  })
+
+  local.request({
+    index: 42
+  })
+
+  a.pipe(b).pipe(a)
+})
