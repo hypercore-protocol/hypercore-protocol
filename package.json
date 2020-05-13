@@ -6,11 +6,11 @@
   "dependencies": {
     "abstract-extension": "^3.0.1",
     "debug": "^4.1.1",
-    "hypercore-crypto": "^1.0.0",
+    "hypercore-crypto": "^2.0.0",
     "inspect-custom-symbol": "^1.1.0",
     "nanoguard": "^1.2.1",
     "pretty-hash": "^1.0.1",
-    "simple-hypercore-protocol": "^1.4.0",
+    "simple-hypercore-protocol": "^2.0.0",
     "streamx": "^2.1.0",
     "timeout-refresh": "^1.0.0"
   },
