@@ -1,12 +1,12 @@
 # hypercore-protocol
 
-Stream that implements the [hypercore](https://github.com/mafintosh/hypercore) protocol
+Stream that implements the [hypercore](https://github.com/hypercore-protocol/hypercore) protocol
 
 ```
 npm install hypercore-protocol
 ```
 
-[![build status](https://travis-ci.org/mafintosh/hypercore-protocol.svg?branch=master)](https://travis-ci.org/mafintosh/hypercore-protocol)
+[![build status](https://travis-ci.org/hypercore-protocol/hypercore-protocol.svg?branch=master)](https://travis-ci.org/hypercore-protocol/hypercore-protocol)
 
 For detailed info on the messages sent on each channel see [simple-hypercore-protocol](https://github.com/mafintosh/simple-hypercore-protocol)
 
