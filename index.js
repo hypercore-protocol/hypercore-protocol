@@ -94,6 +94,9 @@ class Channelizer {
       this.stream.emit('duplex-channel', ch)
     }
     if (ch.handlers && ch.handlers.onopen) ch.handlers.onopen()
+
+    if (this.stream.handlers.onremoteopen) this.stream.handlers.onremoteopen(ch.discoveryKey)
+    this.stream.emit('remote-open', ch.discoveryKey)
   }
 
   onoptions (channelId, message) {
