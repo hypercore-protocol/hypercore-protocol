@@ -49,6 +49,18 @@ class Channelizer {
     ch.remoteId = id
   }
 
+  detachChannel (ch) {
+    if (ch.localId > -1 && this.local[ch.localId] === ch) {
+      this.local[ch.localId] = null
+    }
+    if (ch.remoteId > -1 && this.remote[ch.remoteId] === ch) {
+      this.remote[ch.remoteId] = null
+    }
+
+    const hex = ch.discoveryKey.toString('hex')
+    if (this.created.get(hex) === ch) this.created.delete(hex)
+  }
+
   getChannel (dk) {
     return this.created.get(dk.toString('hex'))
   }
@@ -181,7 +193,7 @@ class Channelizer {
       this.stream.handlers.onchannelclose(ch.discoveryKey, ch.key)
     }
 
-    if (ch.localId > -1) {
+    if (ch.localId > -1 && this.local[ch.localId] === ch) {
       this.local[ch.localId] = null
     }
 
@@ -302,7 +314,10 @@ class Channel {
   close () {
     debug('send close')
     if (this.closed) return
+
+    this.stream.channelizer.detachChannel(this)
     this.state.close(this.localId, {})
+    this.stream._prefinalize()
   }
 
   destroy (err) {

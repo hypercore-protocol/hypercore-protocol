@@ -603,3 +603,28 @@ tape('disable noise', function (t) {
 
   a.pipe(b).pipe(a)
 })
+
+tape('open and close and open same channel', function (t) {
+  const a = new Protocol(true)
+  const b = new Protocol(false, {
+    ondiscoverykey (dkey) {
+      b.open(KEY)
+    }
+  })
+
+  const ch1 = a.open(KEY, {
+    onopen () {
+      t.pass('remote open #1')
+      ch1.close()
+
+      a.open(KEY, {
+        onopen () {
+          t.pass('remote open #2')
+          t.end()
+        }
+      })
+    }
+  })
+
+  a.pipe(b).pipe(a)
+})
