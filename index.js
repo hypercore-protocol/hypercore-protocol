@@ -52,6 +52,7 @@ class Channelizer {
   detachChannel (ch) {
     if (ch.localId > -1 && this.local[ch.localId] === ch) {
       this.local[ch.localId] = null
+      if (ch.handlers && ch.handlers.onclose) ch.handlers.onclose()
     }
     if (ch.remoteId > -1 && this.remote[ch.remoteId] === ch) {
       this.remote[ch.remoteId] = null
