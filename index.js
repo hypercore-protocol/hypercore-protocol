@@ -189,6 +189,7 @@ class Channelizer {
 
     if (ch.localId > -1 && this.local[ch.localId] === ch) {
       this.local[ch.localId] = null
+      ch.state.close(ch.localId, {})
       ch.localId = -1
       if (ch.handlers && ch.handlers.onclose) ch.handlers.onclose()
     }
@@ -197,7 +198,8 @@ class Channelizer {
       this.stream.handlers.onchannelclose(ch.discoveryKey, ch.key)
     }
 
-    this.created.delete(ch.discoveryKey.toString('hex'))
+    const hex = ch.discoveryKey.toString('hex')
+    if (this.created.get(hex) === ch) this.created.delete(hex)
     this.stream._prefinalize()
   }
 
