@@ -433,6 +433,7 @@ module.exports = class ProtocolStream extends Duplex {
   }
 
   _destroy (cb) {
+    this._predestroy() // make sure this always runs
     this.channelizer.destroy()
     this.state.destroy()
     cb(null)
