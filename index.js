@@ -89,14 +89,26 @@ class Channelizer {
     this.stream.emit('handshake')
   }
 
+  _ondiscoverykey (discoveryKey) {
+    if (this.stream.handlers.ondiscoverykey) {
+      this.stream.handlers.ondiscoverykey(discoveryKey)
+      return
+    }
+    if (this.stream.emit('discovery-key', discoveryKey)) {
+      return
+    }
+
+    if (this.stream.handlers.autoClose === false) return
+    this.stream.close(discoveryKey)
+  }
+
   onopen (channelId, message) {
     debug('recv open', channelId, message)
     const ch = this.createChannel(message.discoveryKey)
     ch.remoteCapability = message.capability
     this.attachRemote(ch, channelId)
     if (ch.localId === -1) {
-      if (this.stream.handlers.ondiscoverykey) this.stream.handlers.ondiscoverykey(ch.discoveryKey)
-      this.stream.emit('discovery-key', ch.discoveryKey)
+      this._ondiscoverykey(ch.discoveryKey)
     } else {
       if (this.noise && !ch.remoteVerified) {
         // We are leaking metadata here that the remote cap was bad which means the remote prob can figure
