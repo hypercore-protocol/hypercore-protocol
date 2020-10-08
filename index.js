@@ -90,15 +90,18 @@ class Channelizer {
   }
 
   _ondiscoverykey (discoveryKey) {
+    let handled = false
+
     if (this.stream.handlers.ondiscoverykey) {
       this.stream.handlers.ondiscoverykey(discoveryKey)
-      return
-    }
-    if (this.stream.emit('discovery-key', discoveryKey)) {
-      return
+      handled = true
     }
 
-    if (this.stream.handlers.autoClose === false) return
+    if (this.stream.emit('discovery-key', discoveryKey)) {
+      handled = true
+    }
+
+    if (handled || this.stream.handlers.autoClose === false) return
     this.stream.close(discoveryKey)
   }
 

@@ -43,7 +43,7 @@ tape('send messages', function (t) {
 
   const a = new Protocol(true, {
     ondiscoverykey (discoveryKey) {
-      t.same(discoveryKey, other.discoveryKey)
+      t.same(discoveryKey, other.discoveryKey, 'dkey')
     }
   })
   const b = new Protocol(false)
@@ -55,19 +55,19 @@ tape('send messages', function (t) {
       ch1.cancel({ index: 100 })
     },
     onwant (want) {
-      t.same(want, { start: 10, length: 100 })
+      t.same(want, { start: 10, length: 100 }, 'onwant')
     },
     onstatus (status) {
-      t.same(status, { uploading: false, downloading: true })
+      t.same(status, { uploading: false, downloading: true }, 'onstatus')
     },
     onunwant (unwant) {
-      t.same(unwant, { start: 11, length: 100 })
+      t.same(unwant, { start: 11, length: 100 }, 'onunwant')
     },
     onunhave (unhave) {
-      t.same(unhave, { start: 18, length: 100 })
+      t.same(unhave, { start: 18, length: 100 }, 'onunhave')
     },
     onhave (have) {
-      t.same(have, { start: 10, length: 10, bitfield: null, ack: false })
+      t.same(have, { start: 10, length: 10, bitfield: null, ack: false }, 'onhave')
     }
   })
 
@@ -80,20 +80,20 @@ tape('send messages', function (t) {
       ch2.have({ start: 10, length: 10 })
     },
     onrequest (request) {
-      t.same(request, { index: 10, hash: false, bytes: 0, nodes: 0 })
+      t.same(request, { index: 10, hash: false, bytes: 0, nodes: 0 }, 'onrequest')
     },
     ondata (data) {
-      t.same(data, { index: 42, signature: null, value: Buffer.from('hi'), nodes: [] })
+      t.same(data, { index: 42, signature: null, value: Buffer.from('hi'), nodes: [] }, 'ondata')
     },
     oncancel (cancel) {
-      t.same(cancel, { index: 100, hash: false, bytes: 0 })
+      t.same(cancel, { index: 100, hash: false, bytes: 0 }, 'oncancel')
     }
   })
 
   const other = b.open(OTHER_KEY)
 
   a.on('discovery-key', function (discoveryKey) {
-    t.same(discoveryKey, other.discoveryKey)
+    t.same(discoveryKey, other.discoveryKey, 'dkey event')
   })
 
   a.pipe(b).pipe(a)
